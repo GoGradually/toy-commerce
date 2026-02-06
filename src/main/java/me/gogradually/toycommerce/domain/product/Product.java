@@ -1,9 +1,12 @@
 package me.gogradually.toycommerce.domain.product;
 
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductNameException;
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductPriceException;
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductStatusException;
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductStockException;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import me.gogradually.toycommerce.common.exception.ErrorCode;
-import me.gogradually.toycommerce.common.exception.ToyCommerceException;
 
 public class Product {
 
@@ -13,7 +16,7 @@ public class Product {
     private int stock;
     private ProductStatus status;
     private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final LocalDateTime updatedAt;
 
     private Product(
             Long id,
@@ -71,25 +74,25 @@ public class Product {
 
     private void validateName(String name) {
         if (name == null || name.trim().isEmpty()) {
-            throw new ToyCommerceException(ErrorCode.INVALID_PRODUCT_NAME);
+            throw new InvalidProductNameException(name);
         }
     }
 
     private void validatePrice(BigDecimal price) {
         if (price == null || price.signum() < 0) {
-            throw new ToyCommerceException(ErrorCode.INVALID_PRODUCT_PRICE);
+            throw new InvalidProductPriceException(price);
         }
     }
 
     private void validateStock(int stock) {
         if (stock < 0) {
-            throw new ToyCommerceException(ErrorCode.INVALID_PRODUCT_STOCK);
+            throw new InvalidProductStockException(stock);
         }
     }
 
     private void validateStatus(ProductStatus status) {
         if (status == null) {
-            throw new ToyCommerceException(ErrorCode.INVALID_REQUEST, "상품 상태는 필수입니다.");
+            throw new InvalidProductStatusException(status);
         }
     }
 

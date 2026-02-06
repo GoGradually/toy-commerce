@@ -5,10 +5,9 @@ import me.gogradually.toycommerce.application.product.command.CreateProductComma
 import me.gogradually.toycommerce.application.product.command.UpdateProductCommand;
 import me.gogradually.toycommerce.application.product.command.UpdateProductStockCommand;
 import me.gogradually.toycommerce.application.product.dto.ProductDetailInfo;
-import me.gogradually.toycommerce.common.exception.ErrorCode;
-import me.gogradually.toycommerce.common.exception.ToyCommerceException;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
+import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +51,6 @@ public class AdminProductService {
 
     private Product getProductById(Long productId) {
         return productRepository.findById(productId)
-                .orElseThrow(() -> new ToyCommerceException(ErrorCode.PRODUCT_NOT_FOUND));
+                .orElseThrow(() -> new ProductNotFoundException(productId));
     }
 }

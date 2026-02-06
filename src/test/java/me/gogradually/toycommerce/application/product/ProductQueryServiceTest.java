@@ -1,21 +1,12 @@
 package me.gogradually.toycommerce.application.product;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
 import me.gogradually.toycommerce.application.product.dto.ProductDetailInfo;
 import me.gogradually.toycommerce.application.product.dto.ProductPageInfo;
-import me.gogradually.toycommerce.common.exception.ErrorCode;
-import me.gogradually.toycommerce.common.exception.ToyCommerceException;
+import me.gogradually.toycommerce.application.product.exception.InvalidProductQueryException;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
 import me.gogradually.toycommerce.domain.product.ProductStatus;
+import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -24,6 +15,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProductQueryServiceTest {
@@ -86,16 +87,12 @@ class ProductQueryServiceTest {
         when(productRepository.findByIdAndStatus(100L, ProductStatus.ACTIVE)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> productQueryService.getProduct(100L))
-                .isInstanceOf(ToyCommerceException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
+                .isInstanceOf(ProductNotFoundException.class);
     }
 
     @Test
     void shouldThrowWhenSortByIsInvalid() {
         assertThatThrownBy(() -> productQueryService.getProducts(0, 20, "unknown", "desc"))
-                .isInstanceOf(ToyCommerceException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_REQUEST);
+                .isInstanceOf(InvalidProductQueryException.class);
     }
 }

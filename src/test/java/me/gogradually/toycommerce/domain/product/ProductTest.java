@@ -1,12 +1,14 @@
 package me.gogradually.toycommerce.domain.product;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductNameException;
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductPriceException;
+import me.gogradually.toycommerce.domain.product.exception.InvalidProductStockException;
+import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import me.gogradually.toycommerce.common.exception.ErrorCode;
-import me.gogradually.toycommerce.common.exception.ToyCommerceException;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductTest {
 
@@ -23,24 +25,18 @@ class ProductTest {
     @Test
     void shouldThrowWhenPriceIsNegative() {
         assertThatThrownBy(() -> Product.create("레고", new BigDecimal("-1"), 10, ProductStatus.ACTIVE))
-                .isInstanceOf(ToyCommerceException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_PRODUCT_PRICE);
+                .isInstanceOf(InvalidProductPriceException.class);
     }
 
     @Test
     void shouldThrowWhenStockIsNegative() {
         assertThatThrownBy(() -> Product.create("레고", new BigDecimal("1000"), -1, ProductStatus.ACTIVE))
-                .isInstanceOf(ToyCommerceException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_PRODUCT_STOCK);
+                .isInstanceOf(InvalidProductStockException.class);
     }
 
     @Test
     void shouldThrowWhenNameIsBlank() {
         assertThatThrownBy(() -> Product.create(" ", new BigDecimal("1000"), 1, ProductStatus.ACTIVE))
-                .isInstanceOf(ToyCommerceException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_PRODUCT_NAME);
+                .isInstanceOf(InvalidProductNameException.class);
     }
 }
