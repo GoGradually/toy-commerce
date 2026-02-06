@@ -15,7 +15,7 @@
 ### Domain
 
 - [ ] `Wishlist` 모델 및 중복 방지 규칙 구현
-- [ ] 찜 수 집계 기준 합의(활성 상품만 포함 여부)
+- [ ] 찜 수 집계 기준 합의
 
 ### Application
 
@@ -32,9 +32,8 @@
 ### Infrastructure
 
 - [ ] 찜 테이블/Repository 구현
-- [ ] 랭킹 집계 전략 구현(실시간 쿼리 또는 사전 집계)
+- [ ] 랭킹 집계 전략 구현(redis Sorted Set 이용)
 - [ ] `(member_id, product_id)` 유니크 제약 적용
-- [ ] 랭킹 조회 인덱스 검토
 
 ### Test
 
