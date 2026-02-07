@@ -1,5 +1,7 @@
 package me.gogradually.toycommerce.domain.order;
 
+import me.gogradually.toycommerce.domain.order.exception.InvalidOrderItemException;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -34,7 +36,7 @@ public class OrderItem {
 
         BigDecimal expectedLineTotal = calculateLineTotal(unitPrice, quantity);
         if (lineTotal == null || expectedLineTotal.compareTo(lineTotal) != 0) {
-            throw new IllegalArgumentException("Order item lineTotal must match unitPrice * quantity.");
+            throw InvalidOrderItemException.invalidLineTotal(expectedLineTotal, lineTotal);
         }
 
         this.id = id;
@@ -88,38 +90,38 @@ public class OrderItem {
 
     private static BigDecimal calculateLineTotal(BigDecimal unitPrice, int quantity) {
         if (unitPrice == null) {
-            throw new IllegalArgumentException("Order item unitPrice must not be null.");
+            throw InvalidOrderItemException.invalidUnitPrice(null);
         }
         return unitPrice.multiply(BigDecimal.valueOf(quantity));
     }
 
     private void validateOrderId(Long orderId) {
         if (orderId != null && orderId <= 0) {
-            throw new IllegalArgumentException("Order item orderId must be greater than 0.");
+            throw InvalidOrderItemException.invalidOrderId(orderId);
         }
     }
 
     private void validateProductId(Long productId) {
         if (productId == null || productId <= 0) {
-            throw new IllegalArgumentException("Order item productId must be greater than 0.");
+            throw InvalidOrderItemException.invalidProductId(productId);
         }
     }
 
     private void validateProductName(String productNameSnapshot) {
         if (productNameSnapshot == null || productNameSnapshot.trim().isEmpty()) {
-            throw new IllegalArgumentException("Order item productNameSnapshot must not be blank.");
+            throw InvalidOrderItemException.invalidProductName(productNameSnapshot);
         }
     }
 
     private void validateUnitPrice(BigDecimal unitPrice) {
         if (unitPrice == null || unitPrice.signum() < 0) {
-            throw new IllegalArgumentException("Order item unitPrice must be zero or positive.");
+            throw InvalidOrderItemException.invalidUnitPrice(unitPrice);
         }
     }
 
     private void validateQuantity(int quantity) {
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Order item quantity must be greater than 0.");
+            throw InvalidOrderItemException.invalidQuantity(quantity);
         }
     }
 
