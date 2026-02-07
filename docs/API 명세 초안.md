@@ -1,4 +1,4 @@
-# API 명세 초안 (Agent A, B, C)
+# API 명세 초안 (Agent A, B, C, D)
 
 ## OpenAPI / Swagger
 
@@ -183,3 +183,51 @@
 - `DELETE /api/cart/items`
 - Header
   - `X-Member-Id` (필수, 1 이상)
+
+## 주문/결제 API (Agent D)
+
+### 15) 주문 생성(checkout)
+
+- `POST /api/orders/checkout`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- 설명
+  - 회원 장바구니를 주문으로 생성
+  - checkout 시점에 재고를 선차감
+  - 장바구니가 비어 있으면 실패
+
+### 16) 주문 결제(pay)
+
+- `POST /api/orders/{orderId}/pay`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- Request
+
+```json
+{
+  "paymentToken": "CARD_20260207_0001"
+}
+```
+
+- 설명
+  - `paymentToken` 규칙으로 모사 결제 처리
+  - `FAIL_` 접두어: 결제 실패
+  - `TIMEOUT_` 접두어: 타임아웃(1회 재시도 후 실패 시 결제 실패 처리)
+  - 결제 실패 시 주문 상태를 `PAYMENT_FAILED`로 변경하고 선차감 재고를 복원
+  - 이미 `PAID` 주문은 멱등 성공
+
+### 17) 주문 상세 조회
+
+- `GET /api/orders/{orderId}`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- 설명
+  - 주문자 본인 소유 주문만 조회 가능
+  - 소유자가 아니거나 미존재 주문이면 `ORDER-404` 반환
+
+## 주문 상태 전이 규칙
+
+- `PENDING_PAYMENT` -> `PAID`: 결제 성공
+- `PENDING_PAYMENT` -> `PAYMENT_FAILED`: 결제 실패/타임아웃 최종 실패
+- `PAID` -> `PAID`: 결제 재호출 시 멱등 성공
+- `PAYMENT_FAILED` -> (결제 불가): `ORDER-400-STATE`
