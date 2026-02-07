@@ -15,7 +15,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Toy Commerce API")
-                        .description("상품 조회 및 관리자 상품/재고 관리 API 문서")
+                        .description("상품 조회/관리, 찜, 인기 랭킹 API 문서")
                         .version("v1")
                         .contact(new Contact()
                                 .name("Toy Commerce Team")
@@ -35,6 +35,14 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("admin-products")
                 .pathsToMatch("/api/admin/products/**")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi wishlistOpenApi() {
+        return GroupedOpenApi.builder()
+                .group("wishlist")
+                .pathsToMatch("/api/products/*/wishlist", "/api/rankings/wishlist/**")
                 .build();
     }
 }
