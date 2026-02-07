@@ -1,4 +1,4 @@
-# API 명세 초안 (Agent A)
+# API 명세 초안 (Agent A, B)
 
 ## OpenAPI / Swagger
 
@@ -94,3 +94,32 @@
 
 - `ACTIVE`: 공개 API 노출 대상
 - `INACTIVE`: 공개 API 비노출, 관리자 API에서는 조회/수정/삭제 가능
+
+## 찜 API (Agent B)
+
+### 7) 상품 찜 추가
+
+- `POST /api/products/{productId}/wishlist`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- 설명
+  - 활성(`ACTIVE`) 상품만 찜 가능
+  - 동일 회원이 동일 상품을 다시 찜해도 성공 응답(멱등)
+
+### 8) 상품 찜 해제
+
+- `DELETE /api/products/{productId}/wishlist`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- 설명
+  - 찜이 이미 없어도 성공 응답(멱등)
+
+### 9) 인기 찜 랭킹 조회
+
+- `GET /api/rankings/wishlist/popular`
+- Query
+  - `limit` (default: `10`, min: `1`, max: `100`)
+- 설명
+  - Redis Sorted Set(`ranking:wishlist:popular`)의 점수 기준 내림차순
+  - 점수는 현재 찜 수(찜 +1, 해제 -1)
+  - 조회 시 비활성/삭제 상품은 필터링
