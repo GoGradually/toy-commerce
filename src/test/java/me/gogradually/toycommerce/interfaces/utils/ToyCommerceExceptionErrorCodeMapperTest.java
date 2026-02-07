@@ -3,7 +3,9 @@ package me.gogradually.toycommerce.interfaces.utils;
 import me.gogradually.toycommerce.application.product.exception.InvalidProductQueryException;
 import me.gogradually.toycommerce.common.exception.ErrorCode;
 import me.gogradually.toycommerce.common.exception.ToyCommerceException;
+import me.gogradually.toycommerce.domain.cart.exception.InvalidCartQuantityException;
 import me.gogradually.toycommerce.domain.product.ProductStatus;
+import me.gogradually.toycommerce.domain.product.exception.InactiveCartProductException;
 import me.gogradually.toycommerce.domain.product.exception.InactiveProductException;
 import me.gogradually.toycommerce.domain.product.exception.InvalidProductPriceException;
 import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundException;
@@ -42,6 +44,20 @@ class ToyCommerceExceptionErrorCodeMapperTest {
         ErrorCode result = mapper.map(new InactiveProductException(1L, ProductStatus.INACTIVE));
 
         assertThat(result).isEqualTo(ErrorCode.INACTIVE_PRODUCT);
+    }
+
+    @Test
+    void shouldMapInvalidCartQuantity() {
+        ErrorCode result = mapper.map(new InvalidCartQuantityException(0));
+
+        assertThat(result).isEqualTo(ErrorCode.INVALID_CART_QUANTITY);
+    }
+
+    @Test
+    void shouldMapInactiveCartProduct() {
+        ErrorCode result = mapper.map(new InactiveCartProductException(1L, ProductStatus.INACTIVE));
+
+        assertThat(result).isEqualTo(ErrorCode.INACTIVE_CART_PRODUCT);
     }
 
     @Test

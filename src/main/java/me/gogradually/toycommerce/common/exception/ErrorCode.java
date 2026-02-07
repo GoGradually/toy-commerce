@@ -15,7 +15,12 @@ public enum ErrorCode {
     INVALID_PRODUCT_NAME(HttpStatus.BAD_REQUEST, "PRODUCT-400-NAME", "상품명은 비어 있을 수 없습니다."),
     INVALID_PRODUCT_PRICE(HttpStatus.BAD_REQUEST, "PRODUCT-400-PRICE", "상품 가격은 0 이상이어야 합니다."),
     INVALID_PRODUCT_STOCK(HttpStatus.BAD_REQUEST, "PRODUCT-400-STOCK", "상품 재고는 0 이상이어야 합니다."),
-    INACTIVE_PRODUCT(HttpStatus.BAD_REQUEST, "PRODUCT-400-INACTIVE", "비활성 상품은 찜할 수 없습니다.");
+    INACTIVE_PRODUCT(HttpStatus.BAD_REQUEST, "PRODUCT-400-INACTIVE", "비활성 상품은 찜할 수 없습니다."),
+
+    INVALID_CART_MEMBER(HttpStatus.BAD_REQUEST, "CART-400-MEMBER", "memberId는 1 이상이어야 합니다."),
+    INVALID_CART_PRODUCT(HttpStatus.BAD_REQUEST, "CART-400-PRODUCT", "productId는 1 이상이어야 합니다."),
+    INVALID_CART_QUANTITY(HttpStatus.BAD_REQUEST, "CART-400-QUANTITY", "수량은 1 이상이어야 합니다."),
+    INACTIVE_CART_PRODUCT(HttpStatus.BAD_REQUEST, "CART-400-INACTIVE", "비활성 상품은 장바구니에 담을 수 없습니다.");
 
     private final HttpStatus status;
     private final String code;
