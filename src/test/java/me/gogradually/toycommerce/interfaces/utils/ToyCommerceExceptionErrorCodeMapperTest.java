@@ -4,11 +4,13 @@ import me.gogradually.toycommerce.application.product.exception.InvalidProductQu
 import me.gogradually.toycommerce.common.exception.ErrorCode;
 import me.gogradually.toycommerce.common.exception.ToyCommerceException;
 import me.gogradually.toycommerce.domain.cart.exception.InvalidCartQuantityException;
+import me.gogradually.toycommerce.domain.order.OrderStatus;
+import me.gogradually.toycommerce.domain.order.exception.EmptyCartException;
+import me.gogradually.toycommerce.domain.order.exception.InvalidOrderStateException;
+import me.gogradually.toycommerce.domain.order.exception.OrderNotFoundException;
+import me.gogradually.toycommerce.domain.order.exception.PaymentFailedException;
 import me.gogradually.toycommerce.domain.product.ProductStatus;
-import me.gogradually.toycommerce.domain.product.exception.InactiveCartProductException;
-import me.gogradually.toycommerce.domain.product.exception.InactiveProductException;
-import me.gogradually.toycommerce.domain.product.exception.InvalidProductPriceException;
-import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundException;
+import me.gogradually.toycommerce.domain.product.exception.*;
 import me.gogradually.toycommerce.interfaces.utils.exception.ToyCommerceExceptionErrorCodeMapper;
 import org.junit.jupiter.api.Test;
 
@@ -58,6 +60,45 @@ class ToyCommerceExceptionErrorCodeMapperTest {
         ErrorCode result = mapper.map(new InactiveCartProductException(1L, ProductStatus.INACTIVE));
 
         assertThat(result).isEqualTo(ErrorCode.INACTIVE_CART_PRODUCT);
+    }
+
+    @Test
+    void shouldMapOrderNotFound() {
+        ErrorCode result = mapper.map(new OrderNotFoundException(1L));
+
+        assertThat(result).isEqualTo(ErrorCode.ORDER_NOT_FOUND);
+    }
+
+    @Test
+    void shouldMapEmptyCart() {
+        ErrorCode result = mapper.map(new EmptyCartException(1001L));
+
+        assertThat(result).isEqualTo(ErrorCode.EMPTY_ORDER_CART);
+    }
+
+    @Test
+    void shouldMapInvalidOrderState() {
+        ErrorCode result = mapper.map(new InvalidOrderStateException(
+                OrderStatus.PAYMENT_FAILED,
+                OrderStatus.PENDING_PAYMENT,
+                OrderStatus.PAID
+        ));
+
+        assertThat(result).isEqualTo(ErrorCode.INVALID_ORDER_STATE);
+    }
+
+    @Test
+    void shouldMapInsufficientStock() {
+        ErrorCode result = mapper.map(new InsufficientProductStockException(1L, 1, 2));
+
+        assertThat(result).isEqualTo(ErrorCode.INSUFFICIENT_ORDER_STOCK);
+    }
+
+    @Test
+    void shouldMapPaymentFailed() {
+        ErrorCode result = mapper.map(new PaymentFailedException(1L));
+
+        assertThat(result).isEqualTo(ErrorCode.PAYMENT_FAILED);
     }
 
     @Test
