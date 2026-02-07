@@ -1,14 +1,16 @@
 package me.gogradually.toycommerce.interfaces.utils;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import me.gogradually.toycommerce.application.product.exception.InvalidProductQueryException;
 import me.gogradually.toycommerce.common.exception.ErrorCode;
 import me.gogradually.toycommerce.common.exception.ToyCommerceException;
+import me.gogradually.toycommerce.domain.product.ProductStatus;
+import me.gogradually.toycommerce.domain.product.exception.InactiveProductException;
 import me.gogradually.toycommerce.domain.product.exception.InvalidProductPriceException;
 import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundException;
 import me.gogradually.toycommerce.interfaces.utils.exception.ToyCommerceExceptionErrorCodeMapper;
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ToyCommerceExceptionErrorCodeMapperTest {
 
@@ -33,6 +35,13 @@ class ToyCommerceExceptionErrorCodeMapperTest {
         ErrorCode result = mapper.map(InvalidProductQueryException.invalidSortBy("x"));
 
         assertThat(result).isEqualTo(ErrorCode.INVALID_REQUEST);
+    }
+
+    @Test
+    void shouldMapInactiveProduct() {
+        ErrorCode result = mapper.map(new InactiveProductException(1L, ProductStatus.INACTIVE));
+
+        assertThat(result).isEqualTo(ErrorCode.INACTIVE_PRODUCT);
     }
 
     @Test
