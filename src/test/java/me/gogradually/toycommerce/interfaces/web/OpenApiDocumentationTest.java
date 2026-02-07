@@ -45,4 +45,12 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths./api/products/{productId}/wishlist").exists())
                 .andExpect(jsonPath("$.paths./api/rankings/wishlist/popular").exists());
     }
+
+    @Test
+    void shouldExposeCartGroupedOpenApiJson() throws Exception {
+        mockMvc.perform(get("/v3/api-docs/cart"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths./api/cart/items").exists())
+                .andExpect(jsonPath("$.paths./api/cart/items/{productId}").exists());
+    }
 }
