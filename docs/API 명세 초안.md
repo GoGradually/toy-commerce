@@ -1,4 +1,4 @@
-# API 명세 초안 (Agent A, B)
+# API 명세 초안 (Agent A, B, C)
 
 ## OpenAPI / Swagger
 
@@ -123,3 +123,63 @@
   - Redis Sorted Set(`ranking:wishlist:popular`)의 점수 기준 내림차순
   - 점수는 현재 찜 수(찜 +1, 해제 -1)
   - 조회 시 비활성/삭제 상품은 필터링
+
+## 장바구니 API (Agent C)
+
+### 10) 장바구니 조회
+
+- `GET /api/cart/items`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- 설명
+  - 회원 장바구니 항목 목록과 총액을 반환
+  - 응답 항목: `productId`, `name`, `price`, `quantity`, `lineTotal`
+  - 총액: `cartTotal`
+  - 비활성/삭제 상품은 조회 응답에서 제외
+
+### 11) 장바구니 담기
+
+- `POST /api/cart/items`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- Request
+
+```json
+{
+  "productId": 1,
+  "quantity": 2
+}
+```
+
+- 설명
+  - 활성(`ACTIVE`) 상품만 담기 가능
+  - 동일 상품 재요청 시 기존 수량에 합산
+
+### 12) 장바구니 수량 변경
+
+- `PATCH /api/cart/items/{productId}`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+- Request
+
+```json
+{
+  "quantity": 3
+}
+```
+
+- 설명
+  - 활성(`ACTIVE`) 상품만 변경 가능
+  - 대상 상품이 장바구니에 없으면 신규 항목으로 추가
+
+### 13) 장바구니 단건 삭제
+
+- `DELETE /api/cart/items/{productId}`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
+
+### 14) 장바구니 전체 비우기
+
+- `DELETE /api/cart/items`
+- Header
+  - `X-Member-Id` (필수, 1 이상)
