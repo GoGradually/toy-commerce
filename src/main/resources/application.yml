@@ -6,6 +6,18 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  data:
+    redis:
+      host: ${REDIS_HOST}      # Redis 서버 주소
+      port: ${REDIS_PORT}           # Redis 포트
+      password: ${REDIS_PASSWORD}
+      database: 0          # 기본 DB index
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
   h2:
     console:
       enabled: true
