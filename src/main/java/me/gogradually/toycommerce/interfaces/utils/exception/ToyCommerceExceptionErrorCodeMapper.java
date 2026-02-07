@@ -6,6 +6,7 @@ import me.gogradually.toycommerce.common.exception.ToyCommerceException;
 import me.gogradually.toycommerce.domain.cart.exception.InvalidCartMemberIdException;
 import me.gogradually.toycommerce.domain.cart.exception.InvalidCartProductIdException;
 import me.gogradually.toycommerce.domain.cart.exception.InvalidCartQuantityException;
+import me.gogradually.toycommerce.domain.order.exception.*;
 import me.gogradually.toycommerce.domain.product.exception.*;
 import me.gogradually.toycommerce.domain.wishlist.exception.InvalidWishlistMemberIdException;
 import me.gogradually.toycommerce.domain.wishlist.exception.InvalidWishlistProductIdException;
@@ -29,7 +30,15 @@ public class ToyCommerceExceptionErrorCodeMapper {
             new MappingRule(InvalidWishlistProductIdException.class, ErrorCode.INVALID_REQUEST),
             new MappingRule(InvalidCartMemberIdException.class, ErrorCode.INVALID_CART_MEMBER),
             new MappingRule(InvalidCartProductIdException.class, ErrorCode.INVALID_CART_PRODUCT),
-            new MappingRule(InvalidCartQuantityException.class, ErrorCode.INVALID_CART_QUANTITY)
+            new MappingRule(InvalidCartQuantityException.class, ErrorCode.INVALID_CART_QUANTITY),
+            new MappingRule(OrderNotFoundException.class, ErrorCode.ORDER_NOT_FOUND),
+            new MappingRule(InvalidOrderMemberIdException.class, ErrorCode.INVALID_ORDER_MEMBER),
+            new MappingRule(InvalidOrderItemException.class, ErrorCode.INVALID_REQUEST),
+            new MappingRule(EmptyCartException.class, ErrorCode.EMPTY_ORDER_CART),
+            new MappingRule(InvalidOrderStateException.class, ErrorCode.INVALID_ORDER_STATE),
+            new MappingRule(InsufficientProductStockException.class, ErrorCode.INSUFFICIENT_ORDER_STOCK),
+            new MappingRule(PaymentFailedException.class, ErrorCode.PAYMENT_FAILED),
+            new MappingRule(PaymentTimeoutException.class, ErrorCode.PAYMENT_FAILED)
     );
 
     public ErrorCode map(ToyCommerceException exception) {

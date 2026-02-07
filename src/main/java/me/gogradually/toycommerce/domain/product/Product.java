@@ -1,9 +1,6 @@
 package me.gogradually.toycommerce.domain.product;
 
-import me.gogradually.toycommerce.domain.product.exception.InvalidProductNameException;
-import me.gogradually.toycommerce.domain.product.exception.InvalidProductPriceException;
-import me.gogradually.toycommerce.domain.product.exception.InvalidProductStatusException;
-import me.gogradually.toycommerce.domain.product.exception.InvalidProductStockException;
+import me.gogradually.toycommerce.domain.product.exception.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -70,6 +67,23 @@ public class Product {
     public void changeStock(int stock) {
         validateStock(stock);
         this.stock = stock;
+    }
+
+    public void decreaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Stock decrease quantity must be greater than 0.");
+        }
+        if (this.stock < quantity) {
+            throw new InsufficientProductStockException(this.id, this.stock, quantity);
+        }
+        this.stock -= quantity;
+    }
+
+    public void increaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Stock increase quantity must be greater than 0.");
+        }
+        this.stock += quantity;
     }
 
     private void validateName(String name) {
