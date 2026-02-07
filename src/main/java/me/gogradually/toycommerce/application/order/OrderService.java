@@ -22,8 +22,7 @@ import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundExcept
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -47,15 +46,24 @@ public class OrderService {
             throw new EmptyCartException(memberId);
         }
 
-        List<OrderItem> orderItems = new ArrayList<>();
-        for (CartItem cartItem : cartItems) {
+        List<CartItem> sortedCartItems = sortCartItemsByProductId(cartItems);
+        Map<Long, Product> lockedProducts = new HashMap<>();
+        for (CartItem cartItem : sortedCartItems) {
             Product product = productRepository.findByIdForUpdate(cartItem.getProductId())
                     .orElseThrow(() -> new ProductNotFoundException(cartItem.getProductId()));
 
             ensureProductIsActive(product);
             product.decreaseStock(cartItem.getQuantity());
             productRepository.save(product);
+            lockedProducts.put(product.getId(), product);
+        }
 
+        List<OrderItem> orderItems = new ArrayList<>();
+        for (CartItem cartItem : cartItems) {
+            Product product = lockedProducts.get(cartItem.getProductId());
+            if (product == null) {
+                throw new ProductNotFoundException(cartItem.getProductId());
+            }
             orderItems.add(OrderItem.create(
                     product.getId(),
                     product.getName(),
@@ -129,7 +137,8 @@ public class OrderService {
     }
 
     private void restoreProductStocks(List<OrderItem> orderItems) {
-        for (OrderItem orderItem : orderItems) {
+        List<OrderItem> sortedOrderItems = sortOrderItemsByProductId(orderItems);
+        for (OrderItem orderItem : sortedOrderItems) {
             Product product = productRepository.findByIdForUpdate(orderItem.getProductId())
                     .orElseThrow(() -> new ProductNotFoundException(orderItem.getProductId()));
             product.increaseStock(orderItem.getQuantity());
@@ -158,5 +167,17 @@ public class OrderService {
         if (memberId == null || memberId <= 0) {
             throw new InvalidOrderMemberIdException(memberId);
         }
+    }
+
+    private List<CartItem> sortCartItemsByProductId(List<CartItem> cartItems) {
+        return cartItems.stream()
+                .sorted(Comparator.comparing(CartItem::getProductId))
+                .toList();
+    }
+
+    private List<OrderItem> sortOrderItemsByProductId(List<OrderItem> orderItems) {
+        return orderItems.stream()
+                .sorted(Comparator.comparing(OrderItem::getProductId))
+                .toList();
     }
 }

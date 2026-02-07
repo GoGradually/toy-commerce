@@ -55,7 +55,7 @@ class OrderServiceTest {
 
     @Test
     void shouldCheckoutOrderAndDecreaseStock() {
-        CartItem cartItem = CartItem.restore(1L, 1001L, 11L, 2, LocalDateTime.now(), LocalDateTime.now());
+        CartItem cartItem = cartItem(1L, 1001L, 11L, 2);
         Product product = activeProduct(11L, 10);
 
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(cartItem));
@@ -74,6 +74,48 @@ class OrderServiceTest {
     }
 
     @Test
+    void shouldAcquireProductLocksInAscendingProductIdOrderWhenCheckout() {
+        CartItem firstCartItem = cartItem(1L, 1001L, 20L, 1);
+        CartItem secondCartItem = cartItem(2L, 1001L, 11L, 2);
+        Product firstProduct = activeProduct(11L, 10);
+        Product secondProduct = activeProduct(20L, 10);
+
+        when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(firstCartItem, secondCartItem));
+        when(productRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(firstProduct));
+        when(productRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(secondProduct));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0)));
+
+        orderService.checkout(1001L);
+
+        ArgumentCaptor<Long> productIdCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(productRepository, times(2)).findByIdForUpdate(productIdCaptor.capture());
+        assertThat(productIdCaptor.getAllValues()).containsExactly(11L, 20L);
+    }
+
+    @Test
+    void shouldKeepOriginalCartOrderForOrderItemsWhenCheckout() {
+        CartItem firstCartItem = cartItem(1L, 1001L, 20L, 1);
+        CartItem secondCartItem = cartItem(2L, 1001L, 11L, 2);
+        Product firstProduct = activeProduct(11L, 10);
+        Product secondProduct = activeProduct(20L, 10);
+
+        when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(firstCartItem, secondCartItem));
+        when(productRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(firstProduct));
+        when(productRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(secondProduct));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0)));
+
+        orderService.checkout(1001L);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        assertThat(orderCaptor.getValue().getItems())
+                .extracting(OrderItem::getProductId)
+                .containsExactly(20L, 11L);
+    }
+
+    @Test
     void shouldThrowWhenCheckoutCartIsEmpty() {
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of());
 
@@ -83,7 +125,7 @@ class OrderServiceTest {
 
     @Test
     void shouldThrowWhenCheckoutStockIsInsufficient() {
-        CartItem cartItem = CartItem.restore(1L, 1001L, 11L, 5, LocalDateTime.now(), LocalDateTime.now());
+        CartItem cartItem = cartItem(1L, 1001L, 11L, 5);
         Product product = activeProduct(11L, 2);
 
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(cartItem));
@@ -141,6 +183,35 @@ class OrderServiceTest {
         ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
         verify(productRepository).save(productCaptor.capture());
         assertThat(productCaptor.getValue().getStock()).isEqualTo(10);
+    }
+
+    @Test
+    void shouldAcquireProductLocksInAscendingProductIdOrderWhenRestoringStocks() {
+        Order pendingOrder = pendingOrder(
+                301L,
+                1001L,
+                List.of(
+                        orderItem(1L, 301L, 20L, 1),
+                        orderItem(2L, 301L, 11L, 2)
+                )
+        );
+        Product firstProduct = activeProduct(11L, 8);
+        Product secondProduct = activeProduct(20L, 9);
+
+        when(orderRepository.findByIdForUpdate(301L)).thenReturn(Optional.of(pendingOrder));
+        when(paymentGateway.pay(eq(301L), eq(1001L), any(BigDecimal.class), eq("FAIL_CARD")))
+                .thenReturn(new PaymentGateway.PaymentGatewayResult(false));
+        when(productRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(firstProduct));
+        when(productRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(secondProduct));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> orderService.pay(1001L, 301L, new PayOrderCommand("FAIL_CARD")))
+                .isInstanceOf(PaymentFailedException.class);
+
+        ArgumentCaptor<Long> productIdCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(productRepository, times(2)).findByIdForUpdate(productIdCaptor.capture());
+        assertThat(productIdCaptor.getAllValues()).containsExactly(11L, 20L);
     }
 
     @Test
@@ -202,9 +273,13 @@ class OrderServiceTest {
         );
     }
 
-    private Order pendingOrder(Long orderId, Long memberId, Long productId, int quantity) {
-        OrderItem item = OrderItem.restore(
-                1L,
+    private CartItem cartItem(Long id, Long memberId, Long productId, int quantity) {
+        return CartItem.restore(id, memberId, productId, quantity, LocalDateTime.now(), LocalDateTime.now());
+    }
+
+    private OrderItem orderItem(Long id, Long orderId, Long productId, int quantity) {
+        return OrderItem.restore(
+                id,
                 orderId,
                 productId,
                 "레고 스타터 세트",
@@ -214,12 +289,24 @@ class OrderServiceTest {
                 LocalDateTime.now().minusHours(2),
                 LocalDateTime.now().minusHours(2)
         );
+    }
+
+    private Order pendingOrder(Long orderId, Long memberId, Long productId, int quantity) {
+        OrderItem item = orderItem(1L, orderId, productId, quantity);
+        return pendingOrder(orderId, memberId, List.of(item));
+    }
+
+    private Order pendingOrder(Long orderId, Long memberId, List<OrderItem> items) {
+        BigDecimal totalAmount = items.stream()
+                .map(OrderItem::getLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         return Order.restore(
                 orderId,
                 memberId,
                 OrderStatus.PENDING_PAYMENT,
-                item.getLineTotal(),
-                List.of(item),
+                totalAmount,
+                items,
                 LocalDateTime.now().minusHours(2),
                 LocalDateTime.now().minusHours(2)
         );
