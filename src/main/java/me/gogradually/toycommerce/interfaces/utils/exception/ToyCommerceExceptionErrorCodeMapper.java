@@ -33,6 +33,7 @@ public class ToyCommerceExceptionErrorCodeMapper {
             new MappingRule(InvalidCartQuantityException.class, ErrorCode.INVALID_CART_QUANTITY),
             new MappingRule(OrderNotFoundException.class, ErrorCode.ORDER_NOT_FOUND),
             new MappingRule(InvalidOrderMemberIdException.class, ErrorCode.INVALID_ORDER_MEMBER),
+            new MappingRule(InvalidOrderItemException.class, ErrorCode.INVALID_REQUEST),
             new MappingRule(EmptyCartException.class, ErrorCode.EMPTY_ORDER_CART),
             new MappingRule(InvalidOrderStateException.class, ErrorCode.INVALID_ORDER_STATE),
             new MappingRule(InsufficientProductStockException.class, ErrorCode.INSUFFICIENT_ORDER_STOCK),

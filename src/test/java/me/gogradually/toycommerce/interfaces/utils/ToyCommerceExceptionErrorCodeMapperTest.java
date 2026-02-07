@@ -5,10 +5,7 @@ import me.gogradually.toycommerce.common.exception.ErrorCode;
 import me.gogradually.toycommerce.common.exception.ToyCommerceException;
 import me.gogradually.toycommerce.domain.cart.exception.InvalidCartQuantityException;
 import me.gogradually.toycommerce.domain.order.OrderStatus;
-import me.gogradually.toycommerce.domain.order.exception.EmptyCartException;
-import me.gogradually.toycommerce.domain.order.exception.InvalidOrderStateException;
-import me.gogradually.toycommerce.domain.order.exception.OrderNotFoundException;
-import me.gogradually.toycommerce.domain.order.exception.PaymentFailedException;
+import me.gogradually.toycommerce.domain.order.exception.*;
 import me.gogradually.toycommerce.domain.product.ProductStatus;
 import me.gogradually.toycommerce.domain.product.exception.*;
 import me.gogradually.toycommerce.interfaces.utils.exception.ToyCommerceExceptionErrorCodeMapper;
@@ -74,6 +71,13 @@ class ToyCommerceExceptionErrorCodeMapperTest {
         ErrorCode result = mapper.map(new EmptyCartException(1001L));
 
         assertThat(result).isEqualTo(ErrorCode.EMPTY_ORDER_CART);
+    }
+
+    @Test
+    void shouldMapInvalidOrderItem() {
+        ErrorCode result = mapper.map(InvalidOrderItemException.invalidQuantity(0));
+
+        assertThat(result).isEqualTo(ErrorCode.INVALID_REQUEST);
     }
 
     @Test
