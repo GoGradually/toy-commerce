@@ -1,6 +1,5 @@
 package me.gogradually.toycommerce.infrastructure.repository.product;
 
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
@@ -8,6 +7,8 @@ import me.gogradually.toycommerce.domain.product.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
 
 @Repository
 @RequiredArgsConstructor
@@ -25,6 +26,12 @@ public class JpaProductRepository implements ProductRepository {
     @Override
     public Optional<Product> findById(Long productId) {
         return jpaRepository.findById(productId)
+                .map(ProductJpaEntity::toDomain);
+    }
+
+    @Override
+    public Optional<Product> findByIdForUpdate(Long productId) {
+        return jpaRepository.findByIdForUpdate(productId)
                 .map(ProductJpaEntity::toDomain);
     }
 
