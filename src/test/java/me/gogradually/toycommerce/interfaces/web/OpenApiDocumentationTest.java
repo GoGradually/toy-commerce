@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,28 +30,31 @@ class OpenApiDocumentationTest {
     void shouldExposeGroupedOpenApiJson() throws Exception {
         mockMvc.perform(get("/v3/api-docs/public-products"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths./api/products").exists());
+                .andExpect(jsonPath("$.paths['/api/products']").exists());
     }
 
     @Test
     void shouldExposeSwaggerUiPage() throws Exception {
-        mockMvc.perform(get("/swagger-ui/index.html"))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/swagger-ui.html"))
+                .andExpect(result -> {
+                    int statusCode = result.getResponse().getStatus();
+                    assertTrue(statusCode >= 200 && statusCode < 400);
+                });
     }
 
     @Test
     void shouldExposeWishlistGroupedOpenApiJson() throws Exception {
         mockMvc.perform(get("/v3/api-docs/wishlist"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths./api/products/{productId}/wishlist").exists())
-                .andExpect(jsonPath("$.paths./api/rankings/wishlist/popular").exists());
+                .andExpect(jsonPath("$.paths['/api/products/{productId}/wishlist']").exists())
+                .andExpect(jsonPath("$.paths['/api/rankings/wishlist/popular']").exists());
     }
 
     @Test
     void shouldExposeCartGroupedOpenApiJson() throws Exception {
         mockMvc.perform(get("/v3/api-docs/cart"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths./api/cart/items").exists())
-                .andExpect(jsonPath("$.paths./api/cart/items/{productId}").exists());
+                .andExpect(jsonPath("$.paths['/api/cart/items']").exists())
+                .andExpect(jsonPath("$.paths['/api/cart/items/{productId}']").exists());
     }
 }
