@@ -3,10 +3,8 @@ package me.gogradually.toycommerce.application.order;
 import lombok.RequiredArgsConstructor;
 import me.gogradually.toycommerce.application.order.command.CompleteOrderDetailsCommand;
 import me.gogradually.toycommerce.application.order.command.PayOrderCommand;
-import me.gogradually.toycommerce.application.order.dto.CheckoutOrderInfo;
-import me.gogradually.toycommerce.application.order.dto.CompleteOrderDetailsInfo;
-import me.gogradually.toycommerce.application.order.dto.OrderDetailInfo;
-import me.gogradually.toycommerce.application.order.dto.PayOrderInfo;
+import me.gogradually.toycommerce.application.order.dto.*;
+import me.gogradually.toycommerce.application.order.event.OrderCancelledEvent;
 import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
 import me.gogradually.toycommerce.application.order.event.OrderInfoCompletedEvent;
 import me.gogradually.toycommerce.application.order.payment.PaymentGateway;
@@ -43,7 +41,30 @@ public class OrderService {
     private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
-    public CheckoutOrderInfo checkout(Long memberId) {
+    public CheckoutOrderResult checkout(Long memberId) {
+        validateMemberId(memberId);
+
+        return orderRepository.findLatestOpenOrder(memberId)
+                .map(order -> CheckoutOrderResult.reused(CheckoutOrderInfo.from(order)))
+                .orElseGet(() -> createCheckoutOrder(memberId));
+    }
+
+    @Transactional
+    public CancelOrderInfo cancel(Long memberId, Long orderId) {
+        validateMemberId(memberId);
+
+        Order order = getOrderForUpdateWithOwnership(memberId, orderId);
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return CancelOrderInfo.from(order);
+        }
+
+        order.cancel();
+        Order saved = orderRepository.save(order);
+        applicationEventPublisher.publishEvent(OrderCancelledEvent.from(saved));
+        return CancelOrderInfo.from(saved);
+    }
+
+    private CheckoutOrderResult createCheckoutOrder(Long memberId) {
         validateMemberId(memberId);
 
         Cart cart = Cart.of(memberId, cartRepository.findByMemberId(memberId));
@@ -60,7 +81,7 @@ public class OrderService {
         Order savedOrder = orderRepository.save(Order.checkout(memberId, orderItems));
         applicationEventPublisher.publishEvent(OrderCreatedEvent.from(savedOrder));
 
-        return CheckoutOrderInfo.from(savedOrder);
+        return CheckoutOrderResult.created(CheckoutOrderInfo.from(savedOrder));
     }
 
     @Transactional

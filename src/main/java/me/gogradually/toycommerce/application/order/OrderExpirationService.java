@@ -19,7 +19,10 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class OrderExpirationService {
 
-    private static final List<OrderStatus> EXPIRABLE_STATUSES = List.of(OrderStatus.CREATED, OrderStatus.INFO_COMPLETED);
+    private static final List<OrderStatus> EXPIRABLE_STATUSES = List.of(
+            OrderStatus.CREATED,
+            OrderStatus.INFO_COMPLETED
+    );
 
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
