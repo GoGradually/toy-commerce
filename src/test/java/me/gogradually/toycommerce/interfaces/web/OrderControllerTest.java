@@ -5,7 +5,6 @@ import me.gogradually.toycommerce.application.order.dto.*;
 import me.gogradually.toycommerce.domain.order.OrderStatus;
 import me.gogradually.toycommerce.domain.order.PaymentMethod;
 import me.gogradually.toycommerce.domain.order.exception.OrderNotFoundException;
-import me.gogradually.toycommerce.domain.order.exception.PaymentFailedException;
 import me.gogradually.toycommerce.interfaces.utils.GlobalExceptionHandler;
 import me.gogradually.toycommerce.interfaces.utils.exception.ToyCommerceExceptionErrorCodeMapper;
 import me.gogradually.toycommerce.interfaces.utils.exception.ValidationErrorMessageResolver;
@@ -21,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -97,7 +97,7 @@ class OrderControllerTest {
 
     @Test
     void shouldPayOrder() throws Exception {
-        PayOrderInfo info = new PayOrderInfo(1L, OrderStatus.PAID, true, PaymentResult.SUCCESS);
+        PayOrderInfo info = new PayOrderInfo(1L, OrderStatus.PAID, true, PaymentResult.SUCCESS, null);
         when(orderService.pay(eq(1001L), eq(1L), any())).thenReturn(info);
 
         mockMvc.perform(post("/api/orders/1/pay")
@@ -111,7 +111,28 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.paid").value(true))
-                .andExpect(jsonPath("$.data.paymentResult").value("SUCCESS"));
+                .andExpect(jsonPath("$.data.paymentResult").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.replacementOrderId").value(nullValue()));
+    }
+
+    @Test
+    void shouldReturnReplacementOrderWhenPaymentFails() throws Exception {
+        PayOrderInfo info = new PayOrderInfo(1L, OrderStatus.PAYMENT_FAILED, false, PaymentResult.FAILED, 2L);
+        when(orderService.pay(eq(1001L), eq(1L), any())).thenReturn(info);
+
+        mockMvc.perform(post("/api/orders/1/pay")
+                        .header("X-Member-Id", "1001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "paymentToken": "FAIL_CARD"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.paid").value(false))
+                .andExpect(jsonPath("$.data.paymentResult").value("FAILED"))
+                .andExpect(jsonPath("$.data.replacementOrderId").value(2L));
     }
 
     @Test
@@ -157,24 +178,6 @@ class OrderControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("ORDER-404"));
-    }
-
-    @Test
-    void shouldReturnBadRequestWhenPaymentFails() throws Exception {
-        doThrow(new PaymentFailedException(1L))
-                .when(orderService).pay(eq(1001L), eq(1L), any());
-
-        mockMvc.perform(post("/api/orders/1/pay")
-                        .header("X-Member-Id", "1001")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "paymentToken": "FAIL_CARD"
-                                }
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error.code").value("PAYMENT-400-FAILED"));
     }
 
     @Test

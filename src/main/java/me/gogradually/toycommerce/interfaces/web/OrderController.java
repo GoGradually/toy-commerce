@@ -80,10 +80,10 @@ public class OrderController {
     @PostMapping("/{orderId}/pay")
     @Operation(summary = "주문 결제", description = "결제를 모사하여 주문 상태를 변경합니다.")
     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "결제 성공/멱등 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "결제 성공/실패 또는 멱등 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "400",
-                    description = "결제 실패 또는 잘못된 상태",
+                    description = "잘못된 상태",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(

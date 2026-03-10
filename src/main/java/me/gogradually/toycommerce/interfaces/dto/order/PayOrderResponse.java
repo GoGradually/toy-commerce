@@ -14,7 +14,9 @@ public record PayOrderResponse(
         @Schema(description = "결제 완료 여부", example = "true")
         boolean paid,
         @Schema(description = "결제 결과", example = "SUCCESS")
-        PaymentResult paymentResult
+        PaymentResult paymentResult,
+        @Schema(description = "결제 실패 시 새로 생성된 대체 주문 ID", example = "2", nullable = true)
+        Long replacementOrderId
 ) {
 
     public static PayOrderResponse from(PayOrderInfo info) {
@@ -22,7 +24,8 @@ public record PayOrderResponse(
                 info.orderId(),
                 info.status(),
                 info.paid(),
-                info.paymentResult()
+                info.paymentResult(),
+                info.replacementOrderId()
         );
     }
 }
