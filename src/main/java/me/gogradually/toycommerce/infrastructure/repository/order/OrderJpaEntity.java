@@ -4,10 +4,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import me.gogradually.toycommerce.domain.order.Order;
-import me.gogradually.toycommerce.domain.order.OrderDetails;
-import me.gogradually.toycommerce.domain.order.OrderStatus;
-import me.gogradually.toycommerce.domain.order.PaymentMethod;
+import me.gogradually.toycommerce.domain.order.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,7 +17,8 @@ import java.util.List;
 @Table(
         name = "orders",
         indexes = {
-                @Index(name = "idx_orders_member_created_at", columnList = "member_id, created_at")
+                @Index(name = "idx_orders_member_created_at", columnList = "member_id, created_at"),
+                @Index(name = "idx_orders_status_created_at", columnList = "status, created_at")
         }
 )
 public class OrderJpaEntity {
@@ -109,6 +107,15 @@ public class OrderJpaEntity {
                         .toList(),
                 createdAt,
                 updatedAt
+        );
+    }
+
+    public ExpiredOrderCancellationTarget toExpiredCancellationTarget() {
+        return new ExpiredOrderCancellationTarget(
+                id,
+                items.stream()
+                        .map(item -> item.toDomain(id))
+                        .toList()
         );
     }
 
