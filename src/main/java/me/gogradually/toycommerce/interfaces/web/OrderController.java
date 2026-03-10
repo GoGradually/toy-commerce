@@ -51,7 +51,7 @@ public class OrderController {
                 .body(ApiResponse.success(CheckoutOrderResponse.from(info)));
     }
 
-    @PutMapping("/{orderId}/details")
+    @PostMapping("/{orderId}/details")
     @Operation(summary = "주문 정보 입력 완료", description = "배송지, 쿠폰, 결제 수단을 저장하고 주문 상태를 정보 입력 완료로 변경합니다.")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "주문 정보 입력 완료 성공"),
