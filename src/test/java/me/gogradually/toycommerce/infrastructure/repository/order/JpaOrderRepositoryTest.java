@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -38,6 +39,24 @@ class JpaOrderRepositoryTest {
         assertThat(result.getFirst().items())
                 .extracting(OrderItem::getProductId)
                 .containsExactly(11L);
+    }
+
+    @Test
+    void shouldFindLatestOpenOrder() {
+        OrderJpaEntity entity = OrderJpaEntity.from(restoreOrder(1L, OrderStatus.INFO_COMPLETED));
+        when(jpaRepository.findFirstByMemberIdAndStatusInOrderByUpdatedAtDescIdDesc(
+                1001L,
+                List.of(OrderStatus.CREATED, OrderStatus.INFO_COMPLETED)
+        )).thenReturn(Optional.of(entity));
+
+        Optional<Order> result = orderRepository.findLatestOpenOrder(1001L);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getId()).isEqualTo(1L);
+        verify(jpaRepository).findFirstByMemberIdAndStatusInOrderByUpdatedAtDescIdDesc(
+                1001L,
+                List.of(OrderStatus.CREATED, OrderStatus.INFO_COMPLETED)
+        );
     }
 
     @Test

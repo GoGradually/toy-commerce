@@ -17,8 +17,8 @@ import java.util.List;
 @Table(
         name = "orders",
         indexes = {
-                @Index(name = "idx_orders_member_created_at", columnList = "member_id, created_at"),
-                @Index(name = "idx_orders_status_created_at", columnList = "status, created_at")
+                @Index(name = "idx_orders_member_status_updated_at", columnList = "member_id, status, updated_at"),
+                @Index(name = "idx_orders_status_updated_at", columnList = "status, updated_at")
         }
 )
 public class OrderJpaEntity {

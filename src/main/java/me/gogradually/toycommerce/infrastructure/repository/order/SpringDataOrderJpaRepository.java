@@ -20,18 +20,21 @@ public interface SpringDataOrderJpaRepository extends JpaRepository<OrderJpaEnti
     @Query("select o from OrderJpaEntity o where o.id = :id")
     Optional<OrderJpaEntity> findByIdWithItemsForUpdate(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = "items")
+    Optional<OrderJpaEntity> findFirstByMemberIdAndStatusInOrderByUpdatedAtDescIdDesc(Long memberId, List<OrderStatus> statuses);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = "items")
     @Query("""
             select distinct o
             from OrderJpaEntity o
             where o.status in :statuses
-              and o.createdAt <= :createdAt
-            order by o.createdAt asc
+              and o.updatedAt <= :updatedAt
+            order by o.updatedAt asc
             """)
     List<OrderJpaEntity> findExpiredCancellationTargets(
             @Param("statuses") List<OrderStatus> statuses,
-            @Param("createdAt") LocalDateTime createdAt
+            @Param("updatedAt") LocalDateTime updatedAt
     );
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)

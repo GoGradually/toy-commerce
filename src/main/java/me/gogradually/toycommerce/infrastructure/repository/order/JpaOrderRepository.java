@@ -15,6 +15,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class JpaOrderRepository implements OrderRepository {
 
+    private static final List<OrderStatus> OPEN_STATUSES = List.of(
+            OrderStatus.CREATED,
+            OrderStatus.INFO_COMPLETED
+    );
+
     private final SpringDataOrderJpaRepository jpaRepository;
 
     @Override
@@ -32,6 +37,12 @@ public class JpaOrderRepository implements OrderRepository {
     @Override
     public Optional<Order> findByIdForUpdate(Long orderId) {
         return jpaRepository.findByIdWithItemsForUpdate(orderId)
+                .map(OrderJpaEntity::toDomain);
+    }
+
+    @Override
+    public Optional<Order> findLatestOpenOrder(Long memberId) {
+        return jpaRepository.findFirstByMemberIdAndStatusInOrderByUpdatedAtDescIdDesc(memberId, OPEN_STATUSES)
                 .map(OrderJpaEntity::toDomain);
     }
 
