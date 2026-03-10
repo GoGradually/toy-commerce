@@ -4,7 +4,7 @@
  */
 
 export type ProductStatus = 'ACTIVE' | 'INACTIVE';
-export type OrderStatus = 'CREATED' | 'INFO_COMPLETED' | 'PAID' | 'PAYMENT_FAILED';
+export type OrderStatus = 'CREATED' | 'INFO_COMPLETED' | 'PAID' | 'PAYMENT_FAILED' | 'CANCELLED';
 export type PaymentMethod = 'CARD' | 'BANK_TRANSFER';
 export type PaymentResult = 'SUCCESS' | 'FAILED';
 
@@ -101,6 +101,7 @@ export interface PayOrderResponse {
     status: OrderStatus;
     paid: boolean;
     paymentResult: PaymentResult;
+    replacementOrderId?: number | null;
 }
 
 export interface WishlistPopularRankingItemResponse {

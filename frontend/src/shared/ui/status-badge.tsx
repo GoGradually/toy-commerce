@@ -11,6 +11,7 @@ const statusClassMap: Record<string, string> = {
     INFO_COMPLETED: 'bg-amber-100 text-amber-800',
     PAID: 'bg-emerald-100 text-emerald-800',
     PAYMENT_FAILED: 'bg-red-100 text-red-800',
+    CANCELLED: 'bg-slate-300 text-slate-800',
     SUCCESS: 'bg-emerald-100 text-emerald-800',
     FAILED: 'bg-red-100 text-red-800'
 };
@@ -22,6 +23,7 @@ const statusLabelMap: Record<string, string> = {
     INFO_COMPLETED: '정보 입력 완료',
     PAID: '결제 완료',
     PAYMENT_FAILED: '결제 실패',
+    CANCELLED: '만료 취소',
     SUCCESS: '성공',
     FAILED: '실패'
 };

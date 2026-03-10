@@ -19,7 +19,7 @@ export type OrderDetailResponse = {
     /**
      * 주문 상태
      */
-    status?: 'CREATED' | 'INFO_COMPLETED' | 'PAID' | 'PAYMENT_FAILED';
+    status?: 'CREATED' | 'INFO_COMPLETED' | 'PAID' | 'PAYMENT_FAILED' | 'CANCELLED';
     /**
      * 총 주문 금액
      */

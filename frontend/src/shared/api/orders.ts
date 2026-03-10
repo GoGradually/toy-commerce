@@ -54,7 +54,7 @@ export async function completeOrderDetails(
 ): Promise<CompleteOrderDetailsResponse> {
     try {
         return await apiRequest<CompleteOrderDetailsResponse>(`/api/orders/${orderId}/details`, {
-            method: 'PUT',
+            method: 'POST',
             memberId,
             body: request
         });

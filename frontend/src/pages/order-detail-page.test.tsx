@@ -114,4 +114,70 @@ describe('OrderDetailPage', () => {
             expect(payOrder).toHaveBeenCalledWith(1, 1, {paymentToken: 'CARD_20260207_0001'});
         });
     });
+
+    it('navigates to replacement order when payment fails', async () => {
+        const user = userEvent.setup();
+        vi.mocked(getOrderDetail).mockImplementation(async (_memberId, orderId) => {
+            if (orderId === 1) {
+                return {
+                    orderId: 1,
+                    memberId: 1,
+                    status: 'INFO_COMPLETED',
+                    originalAmount: 31800,
+                    discountAmount: 3180,
+                    totalAmount: 28620,
+                    items: [],
+                    orderDetails: {
+                        receiverName: '홍길동',
+                        receiverPhone: '01012345678',
+                        zipCode: '06236',
+                        addressLine1: '서울특별시 강남구 테헤란로 123',
+                        addressLine2: '101동 202호',
+                        couponCode: 'WELCOME10',
+                        paymentMethod: 'CARD'
+                    },
+                    createdAt: '2026-02-07T10:15:30'
+                };
+            }
+
+            return {
+                orderId: 2,
+                memberId: 1,
+                status: 'CREATED',
+                originalAmount: 31800,
+                discountAmount: 0,
+                totalAmount: 31800,
+                items: [],
+                orderDetails: {
+                    receiverName: '홍길동',
+                    receiverPhone: '01012345678',
+                    zipCode: '06236',
+                    addressLine1: '서울특별시 강남구 테헤란로 123',
+                    addressLine2: '101동 202호',
+                    couponCode: 'WELCOME10',
+                    paymentMethod: 'CARD'
+                },
+                createdAt: '2026-02-07T10:15:30'
+            };
+        });
+        vi.mocked(payOrder).mockResolvedValue({
+            orderId: 1,
+            status: 'PAYMENT_FAILED',
+            paid: false,
+            paymentResult: 'FAILED',
+            replacementOrderId: 2
+        });
+
+        renderPage({
+            path: '/orders/:orderId',
+            element: <OrderDetailPage/>,
+            initialEntry: '/orders/1'
+        });
+
+        await screen.findByText('주문 결제');
+        await user.click(screen.getByRole('button', {name: '지금 결제'}));
+
+        await screen.findByDisplayValue('홍길동');
+        expect(screen.getByLabelText('쿠폰 코드')).toHaveValue('WELCOME10');
+    });
 });

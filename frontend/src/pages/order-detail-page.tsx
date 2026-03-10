@@ -1,7 +1,7 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import type {Dispatch, SetStateAction} from 'react';
 import {useEffect, useMemo, useState} from 'react';
-import {Link, useParams} from 'react-router-dom';
+import {Link, useNavigate, useParams} from 'react-router-dom';
 import {completeOrderDetails, getOrderDetail, payOrder} from '../shared/api/orders';
 import {toErrorMessage} from '../shared/api/core';
 import {queryKeys} from '../shared/api/query-keys';
@@ -27,6 +27,7 @@ const defaultDetailsForm: CompleteOrderDetailsRequest = {
 export function OrderDetailPage() {
     const {memberId} = useMember();
     const {orderId: rawOrderId} = useParams();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [paymentToken, setPaymentToken] = useState('CARD_20260207_0001');
     const [detailsForm, setDetailsForm] = useState<CompleteOrderDetailsRequest>(defaultDetailsForm);
@@ -48,9 +49,13 @@ export function OrderDetailPage() {
 
     const payMutation = useMutation({
         mutationFn: () => payOrder(memberId, orderId, {paymentToken}),
-        onSuccess: () => {
+        onSuccess: (response) => {
             queryClient.invalidateQueries({queryKey: queryKeys.orders.detail(memberId, orderId)});
             queryClient.invalidateQueries({queryKey: queryKeys.cart.items(memberId)});
+            if (response.replacementOrderId) {
+                queryClient.invalidateQueries({queryKey: queryKeys.orders.detail(memberId, response.replacementOrderId)});
+                navigate(`/orders/${response.replacementOrderId}`);
+            }
         }
     });
 
@@ -202,7 +207,8 @@ export function OrderDetailPage() {
                     </ul>
                     {payMutation.isError ?
                         <p className="text-sm text-red-700">{toErrorMessage(payMutation.error)}</p> : null}
-                    {payMutation.isSuccess ? <p className="text-sm text-emerald-700">결제 요청이 처리되었습니다.</p> : null}
+                    {payMutation.isSuccess && !payMutation.data?.replacementOrderId ?
+                        <p className="text-sm text-emerald-700">결제 요청이 처리되었습니다.</p> : null}
                 </Card>
             ) : null}
 
