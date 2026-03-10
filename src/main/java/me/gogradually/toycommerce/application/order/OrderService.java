@@ -1,28 +1,34 @@
 package me.gogradually.toycommerce.application.order;
 
 import lombok.RequiredArgsConstructor;
+import me.gogradually.toycommerce.application.order.command.CompleteOrderDetailsCommand;
 import me.gogradually.toycommerce.application.order.command.PayOrderCommand;
 import me.gogradually.toycommerce.application.order.dto.CheckoutOrderInfo;
+import me.gogradually.toycommerce.application.order.dto.CompleteOrderDetailsInfo;
 import me.gogradually.toycommerce.application.order.dto.OrderDetailInfo;
 import me.gogradually.toycommerce.application.order.dto.PayOrderInfo;
+import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
+import me.gogradually.toycommerce.application.order.event.OrderInfoCompletedEvent;
+import me.gogradually.toycommerce.application.order.event.OrderPaymentFailedEvent;
 import me.gogradually.toycommerce.application.order.payment.PaymentGateway;
 import me.gogradually.toycommerce.domain.cart.Cart;
 import me.gogradually.toycommerce.domain.cart.CartItem;
 import me.gogradually.toycommerce.domain.cart.CartRepository;
-import me.gogradually.toycommerce.domain.order.Order;
-import me.gogradually.toycommerce.domain.order.OrderItem;
-import me.gogradually.toycommerce.domain.order.OrderRepository;
-import me.gogradually.toycommerce.domain.order.OrderStatus;
+import me.gogradually.toycommerce.domain.order.*;
 import me.gogradually.toycommerce.domain.order.exception.*;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
 import me.gogradually.toycommerce.domain.product.ProductStatus;
 import me.gogradually.toycommerce.domain.product.exception.InactiveCartProductException;
 import me.gogradually.toycommerce.domain.product.exception.ProductNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +41,7 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final PaymentGateway paymentGateway;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public CheckoutOrderInfo checkout(Long memberId) {
@@ -47,35 +54,28 @@ public class OrderService {
         }
 
         List<CartItem> sortedCartItems = sortCartItemsByProductId(cartItems);
-        Map<Long, Product> lockedProducts = new HashMap<>();
-        for (CartItem cartItem : sortedCartItems) {
-            Product product = productRepository.findByIdForUpdate(cartItem.getProductId())
-                    .orElseThrow(() -> new ProductNotFoundException(cartItem.getProductId()));
+        Map<Long, Product> lockedProducts = getLockedProducts(sortedCartItems);
 
-            ensureProductIsActive(product);
-            product.decreaseStock(cartItem.getQuantity());
-            productRepository.save(product);
-            lockedProducts.put(product.getId(), product);
-        }
-
-        List<OrderItem> orderItems = new ArrayList<>();
-        for (CartItem cartItem : cartItems) {
-            Product product = lockedProducts.get(cartItem.getProductId());
-            if (product == null) {
-                throw new ProductNotFoundException(cartItem.getProductId());
-            }
-            orderItems.add(OrderItem.create(
-                    product.getId(),
-                    product.getName(),
-                    product.getPrice(),
-                    cartItem.getQuantity()
-            ));
-        }
+        List<OrderItem> orderItems = makeOrderItems(cartItems, lockedProducts);
 
         Order savedOrder = orderRepository.save(Order.checkout(memberId, orderItems));
+        applicationEventPublisher.publishEvent(OrderCreatedEvent.from(savedOrder));
         cartRepository.deleteByMemberId(memberId);
 
         return CheckoutOrderInfo.from(savedOrder);
+    }
+
+    @Transactional
+    public CompleteOrderDetailsInfo completeOrderDetails(Long memberId, Long orderId, CompleteOrderDetailsCommand command) {
+        validateMemberId(memberId);
+
+        Order order = getOrderForUpdateWithOwnership(memberId, orderId);
+        OrderDetails details = command.toOrderDetails();
+        order.completeDetails(details);
+
+        Order saved = orderRepository.save(order);
+        applicationEventPublisher.publishEvent(OrderInfoCompletedEvent.from(saved));
+        return CompleteOrderDetailsInfo.from(saved);
     }
 
     @Transactional(noRollbackFor = PaymentFailedException.class)
@@ -87,15 +87,15 @@ public class OrderService {
             return PayOrderInfo.success(order);
         }
 
-        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
-            throw new InvalidOrderStateException(order.getStatus(), OrderStatus.PENDING_PAYMENT, OrderStatus.PAID);
+        if (order.getStatus() != OrderStatus.INFO_COMPLETED) {
+            throw new InvalidOrderStateException(order.getStatus(), OrderStatus.INFO_COMPLETED, OrderStatus.PAID);
         }
 
         boolean paid = requestPaymentWithRetry(order, command.paymentToken());
         if (!paid) {
             order.markPaymentFailed();
-            restoreProductStocks(order.getItems());
-            orderRepository.save(order);
+            Order savedFailedOrder = orderRepository.save(order);
+            applicationEventPublisher.publishEvent(OrderPaymentFailedEvent.from(savedFailedOrder));
             throw new PaymentFailedException(orderId);
         }
 
@@ -136,14 +136,33 @@ public class OrderService {
         return false;
     }
 
-    private void restoreProductStocks(List<OrderItem> orderItems) {
-        List<OrderItem> sortedOrderItems = sortOrderItemsByProductId(orderItems);
-        for (OrderItem orderItem : sortedOrderItems) {
-            Product product = productRepository.findByIdForUpdate(orderItem.getProductId())
-                    .orElseThrow(() -> new ProductNotFoundException(orderItem.getProductId()));
-            product.increaseStock(orderItem.getQuantity());
-            productRepository.save(product);
+    private Map<Long, Product> getLockedProducts(List<CartItem> sortedCartItems) {
+        Map<Long, Product> lockedProducts = new HashMap<>();
+        for (CartItem cartItem : sortedCartItems) {
+            Product product = productRepository.findById(cartItem.getProductId())
+                    .orElseThrow(() -> new ProductNotFoundException(cartItem.getProductId()));
+
+            ensureProductIsActive(product);
+            lockedProducts.put(product.getId(), product);
         }
+        return lockedProducts;
+    }
+
+    private List<OrderItem> makeOrderItems(List<CartItem> cartItems, Map<Long, Product> lockedProducts) {
+        List<OrderItem> orderItems = new ArrayList<>();
+        for (CartItem cartItem : cartItems) {
+            Product product = lockedProducts.get(cartItem.getProductId());
+            if (product == null) {
+                throw new ProductNotFoundException(cartItem.getProductId());
+            }
+            orderItems.add(OrderItem.create(
+                    product.getId(),
+                    product.getName(),
+                    product.getPrice(),
+                    cartItem.getQuantity()
+            ));
+        }
+        return orderItems;
     }
 
     private Order getOrderForUpdateWithOwnership(Long memberId, Long orderId) {
@@ -171,13 +190,7 @@ public class OrderService {
 
     private List<CartItem> sortCartItemsByProductId(List<CartItem> cartItems) {
         return cartItems.stream()
-                .sorted(Comparator.comparing(CartItem::getProductId))
-                .toList();
-    }
-
-    private List<OrderItem> sortOrderItemsByProductId(List<OrderItem> orderItems) {
-        return orderItems.stream()
-                .sorted(Comparator.comparing(OrderItem::getProductId))
+                .sorted(java.util.Comparator.comparing(CartItem::getProductId))
                 .toList();
     }
 }
