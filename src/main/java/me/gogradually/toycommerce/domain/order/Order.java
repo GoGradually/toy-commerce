@@ -191,7 +191,11 @@ public class Order {
         }
 
         OrderDetails normalizedOrderDetails = orderDetails == null ? OrderDetails.empty() : orderDetails;
-        if ((status == OrderStatus.INFO_COMPLETED || status == OrderStatus.PAID || status == OrderStatus.PAYMENT_FAILED)
+        if (status == OrderStatus.INFO_COMPLETED && !normalizedOrderDetails.isCompleted()) {
+            throw new IllegalArgumentException("Completed or paid order must have completed order details.");
+        }
+
+        if ((status == OrderStatus.PAID || status == OrderStatus.PAYMENT_FAILED)
                 && !normalizedOrderDetails.isCompleted()) {
             throw new IllegalArgumentException("Completed or paid order must have completed order details.");
         }

@@ -12,6 +12,8 @@ public interface OrderRepository {
 
     Optional<Order> findByIdForUpdate(Long orderId);
 
+    Optional<Order> findLatestOpenOrder(Long memberId);
+
     List<ExpiredOrderCancellationTarget> findExpiredCancellationTargets(List<OrderStatus> statuses, LocalDateTime createdAt);
 
     int cancelExpiredOrders(List<Long> orderIds, LocalDateTime updatedAt);
