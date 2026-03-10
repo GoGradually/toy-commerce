@@ -5,12 +5,12 @@ import me.gogradually.toycommerce.domain.order.OrderItem;
 
 import java.util.List;
 
-public record OrderPaymentFailedEvent(
+public record OrderCancelledEvent(
         Long orderId,
         List<OrderItem> items
 ) {
 
-    public static OrderPaymentFailedEvent from(Order order) {
-        return new OrderPaymentFailedEvent(order.getId(), order.getItems());
+    public static OrderCancelledEvent from(Order order) {
+        return new OrderCancelledEvent(order.getId(), order.getItems());
     }
 }
