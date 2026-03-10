@@ -8,12 +8,14 @@ import me.gogradually.toycommerce.application.order.dto.OrderDetailInfo;
 import me.gogradually.toycommerce.application.order.dto.PayOrderInfo;
 import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
 import me.gogradually.toycommerce.application.order.event.OrderInfoCompletedEvent;
-import me.gogradually.toycommerce.application.order.event.OrderPaymentFailedEvent;
 import me.gogradually.toycommerce.application.order.payment.PaymentGateway;
 import me.gogradually.toycommerce.domain.cart.CartItem;
 import me.gogradually.toycommerce.domain.cart.CartRepository;
 import me.gogradually.toycommerce.domain.order.*;
-import me.gogradually.toycommerce.domain.order.exception.*;
+import me.gogradually.toycommerce.domain.order.exception.EmptyCartException;
+import me.gogradually.toycommerce.domain.order.exception.InvalidOrderStateException;
+import me.gogradually.toycommerce.domain.order.exception.OrderNotFoundException;
+import me.gogradually.toycommerce.domain.order.exception.PaymentTimeoutException;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
 import me.gogradually.toycommerce.domain.product.ProductStatus;
@@ -60,21 +62,20 @@ class OrderServiceTest {
     private OrderService orderService;
 
     @Test
-    void shouldCheckoutOrderAndPublishCreatedEvent() {
+    void shouldCheckoutOrderAndKeepCart() {
         CartItem cartItem = cartItem(1L, 1001L, 11L, 2);
         Product product = activeProduct(11L, 10);
 
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(cartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(product));
-        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0), 500L));
 
         CheckoutOrderInfo result = orderService.checkout(1001L);
 
         assertThat(result.orderId()).isEqualTo(500L);
         assertThat(result.status()).isEqualTo(OrderStatus.CREATED);
         assertThat(result.totalAmount()).isEqualByComparingTo("31800");
-
-        verify(cartRepository).deleteByMemberId(1001L);
+        verify(cartRepository, never()).deleteByMemberId(1001L);
         verify(applicationEventPublisher).publishEvent(any(OrderCreatedEvent.class));
     }
 
@@ -88,7 +89,7 @@ class OrderServiceTest {
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(firstCartItem, secondCartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(firstProduct));
         when(productRepository.findById(20L)).thenReturn(Optional.of(secondProduct));
-        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0), 500L));
 
         orderService.checkout(1001L);
 
@@ -107,7 +108,7 @@ class OrderServiceTest {
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(firstCartItem, secondCartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(firstProduct));
         when(productRepository.findById(20L)).thenReturn(Optional.of(secondProduct));
-        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0), 500L));
 
         orderService.checkout(1001L);
 
@@ -173,47 +174,81 @@ class OrderServiceTest {
     }
 
     @Test
-    void shouldPayOrderSuccessfully() {
+    void shouldPayOrderSuccessfullyAndDeleteMatchedCartLine() {
         Order order = infoCompletedOrder(200L, 1001L, 11L, 2);
+        CartItem cartItem = cartItem(1L, 1001L, 11L, 2);
 
         when(orderRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(order));
         when(paymentGateway.pay(eq(200L), eq(1001L), any(BigDecimal.class), eq("CARD_OK")))
                 .thenReturn(new PaymentGateway.PaymentGatewayResult(true));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cartRepository.findByMemberIdAndProductId(1001L, 11L)).thenReturn(Optional.of(cartItem));
 
         PayOrderInfo result = orderService.pay(1001L, 200L, new PayOrderCommand("CARD_OK"));
 
         assertThat(result.paid()).isTrue();
         assertThat(result.status()).isEqualTo(OrderStatus.PAID);
+        verify(cartRepository).deleteByMemberIdAndProductId(1001L, 11L);
+        verify(cartRepository, never()).save(any(CartItem.class));
+    }
+
+    @Test
+    void shouldPayOrderSuccessfullyAndReduceCartQuantity() {
+        Order order = infoCompletedOrder(201L, 1001L, 11L, 2);
+        CartItem cartItem = cartItem(1L, 1001L, 11L, 5);
+
+        when(orderRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(order));
+        when(paymentGateway.pay(eq(201L), eq(1001L), any(BigDecimal.class), eq("CARD_OK")))
+                .thenReturn(new PaymentGateway.PaymentGatewayResult(true));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cartRepository.findByMemberIdAndProductId(1001L, 11L)).thenReturn(Optional.of(cartItem));
+        when(cartRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.pay(1001L, 201L, new PayOrderCommand("CARD_OK"));
+
+        ArgumentCaptor<CartItem> cartItemCaptor = ArgumentCaptor.forClass(CartItem.class);
+        verify(cartRepository).save(cartItemCaptor.capture());
+        assertThat(cartItemCaptor.getValue().getQuantity()).isEqualTo(3);
+        verify(cartRepository, never()).deleteByMemberIdAndProductId(1001L, 11L);
     }
 
     @Test
     void shouldReturnIdempotentSuccessWhenOrderAlreadyPaid() {
-        Order paidOrder = paidOrder(201L, 1001L, 11L, 2);
-        when(orderRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(paidOrder));
+        Order paidOrder = paidOrder(202L, 1001L, 11L, 2);
+        when(orderRepository.findByIdForUpdate(202L)).thenReturn(Optional.of(paidOrder));
 
-        PayOrderInfo result = orderService.pay(1001L, 201L, new PayOrderCommand("CARD_OK"));
+        PayOrderInfo result = orderService.pay(1001L, 202L, new PayOrderCommand("CARD_OK"));
 
         assertThat(result.paid()).isTrue();
         assertThat(result.status()).isEqualTo(OrderStatus.PAID);
     }
 
     @Test
-    void shouldFailPaymentAndPublishFailedEvent() {
+    void shouldCreateReplacementOrderWhenPaymentFails() {
         Order order = infoCompletedOrder(300L, 1001L, 11L, 2);
 
         when(orderRepository.findByIdForUpdate(300L)).thenReturn(Optional.of(order));
         when(paymentGateway.pay(eq(300L), eq(1001L), any(BigDecimal.class), eq("FAIL_CARD")))
                 .thenReturn(new PaymentGateway.PaymentGatewayResult(false));
-        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any(Order.class)))
+                .thenAnswer(invocation -> {
+                    Order saved = invocation.getArgument(0);
+                    long orderId = saved.getStatus() == OrderStatus.PAYMENT_FAILED ? 300L : 301L;
+                    return withPersistentIdentity(saved, orderId);
+                });
 
-        assertThatThrownBy(() -> orderService.pay(1001L, 300L, new PayOrderCommand("FAIL_CARD")))
-                .isInstanceOf(PaymentFailedException.class);
+        PayOrderInfo result = orderService.pay(1001L, 300L, new PayOrderCommand("FAIL_CARD"));
+
+        assertThat(result.paid()).isFalse();
+        assertThat(result.status()).isEqualTo(OrderStatus.PAYMENT_FAILED);
+        assertThat(result.replacementOrderId()).isEqualTo(301L);
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-        verify(orderRepository).save(orderCaptor.capture());
-        assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
-        verify(applicationEventPublisher).publishEvent(any(OrderPaymentFailedEvent.class));
+        verify(orderRepository, times(2)).save(orderCaptor.capture());
+        assertThat(orderCaptor.getAllValues())
+                .extracting(Order::getStatus)
+                .containsExactly(OrderStatus.PAYMENT_FAILED, OrderStatus.CREATED);
+        assertThat(orderCaptor.getAllValues().get(1).getOrderDetails().getReceiverName()).isEqualTo("홍길동");
     }
 
     @Test
@@ -225,6 +260,7 @@ class OrderServiceTest {
                 .thenThrow(new PaymentTimeoutException(400L, "TIMEOUT_CARD"))
                 .thenReturn(new PaymentGateway.PaymentGatewayResult(true));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(cartRepository.findByMemberIdAndProductId(1001L, 11L)).thenReturn(Optional.empty());
 
         PayOrderInfo result = orderService.pay(1001L, 400L, new PayOrderCommand("TIMEOUT_CARD"));
 
@@ -344,12 +380,12 @@ class OrderServiceTest {
         return order;
     }
 
-    private Order withPersistentIdentity(Order order) {
+    private Order withPersistentIdentity(Order order, Long orderId) {
         AtomicLong itemSequence = new AtomicLong(1);
         List<OrderItem> persistedItems = order.getItems().stream()
                 .map(item -> OrderItem.restore(
                         itemSequence.getAndIncrement(),
-                        500L,
+                        orderId,
                         item.getProductId(),
                         item.getProductNameSnapshot(),
                         item.getUnitPrice(),
@@ -361,7 +397,7 @@ class OrderServiceTest {
                 .toList();
 
         return Order.restore(
-                500L,
+                orderId,
                 order.getMemberId(),
                 order.getStatus(),
                 order.getOrderDetails(),
