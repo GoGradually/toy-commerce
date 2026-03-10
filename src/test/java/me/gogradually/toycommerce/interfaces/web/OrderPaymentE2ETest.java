@@ -117,7 +117,7 @@ class OrderPaymentE2ETest {
     }
 
     private void completeOrderDetails(Long memberId, Long orderId, String couponCode) throws Exception {
-        mockMvc.perform(put("/api/orders/{orderId}/details", orderId)
+        mockMvc.perform(post("/api/orders/{orderId}/details", orderId)
                         .header("X-Member-Id", String.valueOf(memberId))
                         .contentType(APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CompleteOrderDetailsPayload(

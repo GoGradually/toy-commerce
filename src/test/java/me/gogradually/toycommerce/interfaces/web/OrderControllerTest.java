@@ -25,7 +25,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,7 +75,7 @@ class OrderControllerTest {
         );
         when(orderService.completeOrderDetails(eq(1001L), eq(1L), any())).thenReturn(info);
 
-        mockMvc.perform(put("/api/orders/1/details")
+        mockMvc.perform(post("/api/orders/1/details")
                         .header("X-Member-Id", "1001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -178,7 +179,7 @@ class OrderControllerTest {
 
     @Test
     void shouldReturnBadRequestWhenReceiverPhoneIsInvalid() throws Exception {
-        mockMvc.perform(put("/api/orders/1/details")
+        mockMvc.perform(post("/api/orders/1/details")
                         .header("X-Member-Id", "1001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
