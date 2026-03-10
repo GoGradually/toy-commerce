@@ -1,12 +1,12 @@
 package me.gogradually.toycommerce.infrastructure.repository.order;
 
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
+import me.gogradually.toycommerce.domain.order.OrderStatus;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface SpringDataOrderJpaRepository extends JpaRepository<OrderJpaEntity, Long> {
@@ -19,4 +19,34 @@ public interface SpringDataOrderJpaRepository extends JpaRepository<OrderJpaEnti
     @EntityGraph(attributePaths = "items")
     @Query("select o from OrderJpaEntity o where o.id = :id")
     Optional<OrderJpaEntity> findByIdWithItemsForUpdate(@Param("id") Long id);
+
+    @EntityGraph(attributePaths = "items")
+    Optional<OrderJpaEntity> findFirstByMemberIdAndStatusInOrderByUpdatedAtDescIdDesc(Long memberId, List<OrderStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = "items")
+    @Query("""
+            select distinct o
+            from OrderJpaEntity o
+            where o.status in :statuses
+              and o.updatedAt <= :updatedAt
+            order by o.updatedAt asc
+            """)
+    List<OrderJpaEntity> findExpiredCancellationTargets(
+            @Param("statuses") List<OrderStatus> statuses,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update OrderJpaEntity o
+            set o.status = :status,
+                o.updatedAt = :updatedAt
+            where o.id in :orderIds
+            """)
+    int cancelExpiredOrders(
+            @Param("orderIds") List<Long> orderIds,
+            @Param("status") OrderStatus status,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
 }

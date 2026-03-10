@@ -11,8 +11,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,12 +29,14 @@ class OrderPaymentE2ETest {
     private MockMvc mockMvc;
 
     @Test
-    void shouldCheckoutPayAndGetOrderSuccessfully() throws Exception {
+    void shouldCheckoutCompleteDetailsPayAndGetOrderSuccessfully() throws Exception {
         Long memberId = 7001L;
         Long productId = createProduct("주문성공 테스트 상품", 15900, 5, "ACTIVE");
 
         addCartItem(memberId, productId, 2);
         Long orderId = checkout(memberId);
+
+        completeOrderDetails(memberId, orderId, "WELCOME10");
 
         mockMvc.perform(post("/api/orders/{orderId}/pay", orderId)
                         .header("X-Member-Id", String.valueOf(memberId))
@@ -44,28 +48,38 @@ class OrderPaymentE2ETest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value("PAID"));
+                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.replacementOrderId").value(nullValue()));
 
         mockMvc.perform(get("/api/orders/{orderId}", orderId)
                         .header("X-Member-Id", String.valueOf(memberId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PAID"))
-                .andExpect(jsonPath("$.data.totalAmount").value(31800));
+                .andExpect(jsonPath("$.data.originalAmount").value(31800))
+                .andExpect(jsonPath("$.data.discountAmount").value(3180))
+                .andExpect(jsonPath("$.data.totalAmount").value(28620))
+                .andExpect(jsonPath("$.data.orderDetails.couponCode").value("WELCOME10"));
 
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stock").value(3));
+
+        mockMvc.perform(get("/api/cart/items")
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
     }
 
     @Test
-    void shouldMarkFailedAndRestoreStockWhenPaymentFails() throws Exception {
+    void shouldCreateReplacementOrderAndKeepCartWhenPaymentFails() throws Exception {
         Long memberId = 7002L;
         Long productId = createProduct("주문실패 테스트 상품", 15900, 5, "ACTIVE");
 
         addCartItem(memberId, productId, 2);
-        Long orderId = checkout(memberId);
+        Long failedOrderId = checkout(memberId);
+        completeOrderDetails(memberId, failedOrderId, "WELCOME10");
 
-        mockMvc.perform(post("/api/orders/{orderId}/pay", orderId)
+        MvcResult payResult = mockMvc.perform(post("/api/orders/{orderId}/pay", failedOrderId)
                         .header("X-Member-Id", String.valueOf(memberId))
                         .contentType(APPLICATION_JSON)
                         .content("""
@@ -73,18 +87,96 @@ class OrderPaymentE2ETest {
                                   "paymentToken": "FAIL_CARD"
                                 }
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error.code").value("PAYMENT-400-FAILED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("PAYMENT_FAILED"))
+                .andExpect(jsonPath("$.data.paid").value(false))
+                .andExpect(jsonPath("$.data.paymentResult").value("FAILED"))
+                .andReturn();
 
-        mockMvc.perform(get("/api/orders/{orderId}", orderId)
+        Long replacementOrderId = readOrderId(payResult, "replacementOrderId");
+        assertThat(replacementOrderId).isNotNull();
+
+        mockMvc.perform(get("/api/orders/{orderId}", failedOrderId)
                         .header("X-Member-Id", String.valueOf(memberId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PAYMENT_FAILED"));
 
+        mockMvc.perform(get("/api/orders/{orderId}", replacementOrderId)
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.discountAmount").value(0))
+                .andExpect(jsonPath("$.data.totalAmount").value(31800))
+                .andExpect(jsonPath("$.data.orderDetails.receiverName").value("홍길동"))
+                .andExpect(jsonPath("$.data.orderDetails.couponCode").value("WELCOME10"))
+                .andExpect(jsonPath("$.data.orderDetails.paymentMethod").value("CARD"));
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(3));
+
+        mockMvc.perform(get("/api/cart/items")
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].productId").value(productId))
+                .andExpect(jsonPath("$.data.items[0].quantity").value(2));
+
+        completeOrderDetails(memberId, replacementOrderId, "WELCOME10");
+
+        mockMvc.perform(post("/api/orders/{orderId}/pay", replacementOrderId)
+                        .header("X-Member-Id", String.valueOf(memberId))
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "paymentToken": "CARD_OK"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PAID"));
+
+        mockMvc.perform(get("/api/cart/items")
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(3));
+    }
+
+    @Test
+    void shouldReuseExistingOpenOrderAndRestoreStockWhenCancelled() throws Exception {
+        Long memberId = 7003L;
+        Long productId = createProduct("중복체크아웃 테스트 상품", 15900, 5, "ACTIVE");
+
+        addCartItem(memberId, productId, 2);
+        Long orderId = checkout(memberId);
+
+        MvcResult secondCheckout = mockMvc.perform(post("/api/orders/checkout")
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderId").value(orderId))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andReturn();
+
+        assertThat(readOrderId(secondCheckout, "orderId")).isEqualTo(orderId);
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(3));
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stock").value(5));
+
+        Long recreatedOrderId = checkout(memberId);
+        assertThat(recreatedOrderId).isNotEqualTo(orderId);
     }
 
     private void addCartItem(Long memberId, Long productId, int quantity) throws Exception {
@@ -101,12 +193,37 @@ class OrderPaymentE2ETest {
                         .header("X-Member-Id", String.valueOf(memberId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
                 .andReturn();
 
+        return readOrderId(result, "orderId");
+    }
+
+    private Long readOrderId(MvcResult result, String fieldName) throws Exception {
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-        long orderId = root.path("data").path("orderId").asLong();
+        JsonNode field = root.path("data").path(fieldName);
+        assertThat(field.isMissingNode()).isFalse();
+        assertThat(field.isNull()).isFalse();
+        long orderId = field.asLong();
         assertThat(orderId).isPositive();
         return orderId;
+    }
+
+    private void completeOrderDetails(Long memberId, Long orderId, String couponCode) throws Exception {
+        mockMvc.perform(post("/api/orders/{orderId}/details", orderId)
+                        .header("X-Member-Id", String.valueOf(memberId))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CompleteOrderDetailsPayload(
+                                "홍길동",
+                                "01012345678",
+                                "06236",
+                                "서울특별시 강남구 테헤란로 123",
+                                "101동 202호",
+                                couponCode,
+                                "CARD"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INFO_COMPLETED"));
     }
 
     private Long createProduct(String name, int price, int stock, String status) throws Exception {
@@ -122,14 +239,6 @@ class OrderPaymentE2ETest {
         return productId;
     }
 
-    @SuppressWarnings("unused")
-    private void updateProduct(Long productId, String name, int price, String status) throws Exception {
-        mockMvc.perform(patch("/api/admin/products/{productId}", productId)
-                        .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateProductPayload(name, price, status))))
-                .andExpect(status().isOk());
-    }
-
     private record CreateProductPayload(
             String name,
             int price,
@@ -138,16 +247,20 @@ class OrderPaymentE2ETest {
     ) {
     }
 
-    private record UpdateProductPayload(
-            String name,
-            int price,
-            String status
-    ) {
-    }
-
     private record AddCartItemPayload(
             Long productId,
             int quantity
+    ) {
+    }
+
+    private record CompleteOrderDetailsPayload(
+            String receiverName,
+            String receiverPhone,
+            String zipCode,
+            String addressLine1,
+            String addressLine2,
+            String couponCode,
+            String paymentMethod
     ) {
     }
 }

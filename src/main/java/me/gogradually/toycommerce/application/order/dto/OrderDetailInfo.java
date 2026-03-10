@@ -11,8 +11,11 @@ public record OrderDetailInfo(
         Long orderId,
         Long memberId,
         OrderStatus status,
+        BigDecimal originalAmount,
+        BigDecimal discountAmount,
         BigDecimal totalAmount,
         List<OrderItemInfo> items,
+        OrderDetailsSnapshotInfo orderDetails,
         LocalDateTime createdAt
 ) {
 
@@ -21,10 +24,13 @@ public record OrderDetailInfo(
                 order.getId(),
                 order.getMemberId(),
                 order.getStatus(),
+                order.getOriginalAmount(),
+                order.getDiscountAmount(),
                 order.getTotalAmount(),
                 order.getItems().stream()
                         .map(OrderItemInfo::from)
                         .toList(),
+                OrderDetailsSnapshotInfo.from(order.getOrderDetails()),
                 order.getCreatedAt()
         );
     }

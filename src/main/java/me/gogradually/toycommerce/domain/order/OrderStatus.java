@@ -1,7 +1,9 @@
 package me.gogradually.toycommerce.domain.order;
 
 public enum OrderStatus {
-    PENDING_PAYMENT,
+    CREATED,
+    INFO_COMPLETED,
     PAID,
-    PAYMENT_FAILED
+    PAYMENT_FAILED,
+    CANCELLED
 }

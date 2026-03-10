@@ -7,9 +7,11 @@ interface StatusBadgeProps {
 const statusClassMap: Record<string, string> = {
     ACTIVE: 'bg-emerald-100 text-emerald-800',
     INACTIVE: 'bg-slate-200 text-slate-700',
-    PENDING_PAYMENT: 'bg-amber-100 text-amber-800',
+    CREATED: 'bg-sky-100 text-sky-800',
+    INFO_COMPLETED: 'bg-amber-100 text-amber-800',
     PAID: 'bg-emerald-100 text-emerald-800',
     PAYMENT_FAILED: 'bg-red-100 text-red-800',
+    CANCELLED: 'bg-slate-300 text-slate-800',
     SUCCESS: 'bg-emerald-100 text-emerald-800',
     FAILED: 'bg-red-100 text-red-800'
 };
@@ -17,9 +19,11 @@ const statusClassMap: Record<string, string> = {
 const statusLabelMap: Record<string, string> = {
     ACTIVE: '활성',
     INACTIVE: '비활성',
-    PENDING_PAYMENT: '결제 대기',
+    CREATED: '생성됨',
+    INFO_COMPLETED: '정보 입력 완료',
     PAID: '결제 완료',
     PAYMENT_FAILED: '결제 실패',
+    CANCELLED: '만료 취소',
     SUCCESS: '성공',
     FAILED: '실패'
 };

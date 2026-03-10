@@ -39,7 +39,7 @@ describe('CartPage', () => {
         vi.mocked(clearCart).mockResolvedValue(undefined);
         vi.mocked(checkoutOrder).mockResolvedValue({
             orderId: 42,
-            status: 'PENDING_PAYMENT',
+            status: 'CREATED',
             totalAmount: 1000,
             items: []
         });

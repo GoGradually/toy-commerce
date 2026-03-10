@@ -7,7 +7,8 @@ public record PayOrderInfo(
         Long orderId,
         OrderStatus status,
         boolean paid,
-        PaymentResult paymentResult
+        PaymentResult paymentResult,
+        Long replacementOrderId
 ) {
 
     public static PayOrderInfo success(Order order) {
@@ -15,7 +16,18 @@ public record PayOrderInfo(
                 order.getId(),
                 order.getStatus(),
                 order.getStatus() == OrderStatus.PAID,
-                PaymentResult.SUCCESS
+                PaymentResult.SUCCESS,
+                null
+        );
+    }
+
+    public static PayOrderInfo failed(Order order, Long replacementOrderId) {
+        return new PayOrderInfo(
+                order.getId(),
+                order.getStatus(),
+                false,
+                PaymentResult.FAILED,
+                replacementOrderId
         );
     }
 }

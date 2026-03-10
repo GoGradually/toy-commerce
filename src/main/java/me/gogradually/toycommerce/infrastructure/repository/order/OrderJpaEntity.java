@@ -4,8 +4,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import me.gogradually.toycommerce.domain.order.Order;
-import me.gogradually.toycommerce.domain.order.OrderStatus;
+import me.gogradually.toycommerce.domain.order.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,7 +17,8 @@ import java.util.List;
 @Table(
         name = "orders",
         indexes = {
-                @Index(name = "idx_orders_member_created_at", columnList = "member_id, created_at")
+                @Index(name = "idx_orders_member_status_updated_at", columnList = "member_id, status, updated_at"),
+                @Index(name = "idx_orders_status_updated_at", columnList = "status, updated_at")
         }
 )
 public class OrderJpaEntity {
@@ -33,6 +33,25 @@ public class OrderJpaEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderStatus status;
+    @Column(name = "receiver_name", length = 50)
+    private String receiverName;
+    @Column(name = "receiver_phone", length = 20)
+    private String receiverPhone;
+    @Column(name = "zip_code", length = 10)
+    private String zipCode;
+    @Column(name = "address_line1", length = 255)
+    private String addressLine1;
+    @Column(name = "address_line2", length = 255)
+    private String addressLine2;
+    @Column(name = "coupon_code", length = 50)
+    private String couponCode;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 30)
+    private PaymentMethod paymentMethod;
+    @Column(name = "original_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal originalAmount;
+    @Column(name = "discount_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal discountAmount;
     @Column(name = "total_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalAmount;
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -46,6 +65,15 @@ public class OrderJpaEntity {
         entity.id = order.getId();
         entity.memberId = order.getMemberId();
         entity.status = order.getStatus();
+        entity.receiverName = order.getOrderDetails().getReceiverName();
+        entity.receiverPhone = order.getOrderDetails().getReceiverPhone();
+        entity.zipCode = order.getOrderDetails().getZipCode();
+        entity.addressLine1 = order.getOrderDetails().getAddressLine1();
+        entity.addressLine2 = order.getOrderDetails().getAddressLine2();
+        entity.couponCode = order.getOrderDetails().getCouponCode();
+        entity.paymentMethod = order.getOrderDetails().getPaymentMethod();
+        entity.originalAmount = order.getOriginalAmount();
+        entity.discountAmount = order.getDiscountAmount();
         entity.totalAmount = order.getTotalAmount();
         entity.createdAt = order.getCreatedAt();
         entity.updatedAt = order.getUpdatedAt();
@@ -62,12 +90,32 @@ public class OrderJpaEntity {
                 id,
                 memberId,
                 status,
+                OrderDetails.restore(
+                        receiverName,
+                        receiverPhone,
+                        zipCode,
+                        addressLine1,
+                        addressLine2,
+                        couponCode,
+                        paymentMethod
+                ),
+                originalAmount,
+                discountAmount,
                 totalAmount,
                 items.stream()
                         .map(item -> item.toDomain(id))
                         .toList(),
                 createdAt,
                 updatedAt
+        );
+    }
+
+    public ExpiredOrderCancellationTarget toExpiredCancellationTarget() {
+        return new ExpiredOrderCancellationTarget(
+                id,
+                items.stream()
+                        .map(item -> item.toDomain(id))
+                        .toList()
         );
     }
 

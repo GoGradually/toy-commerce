@@ -11,7 +11,7 @@ import java.util.List;
 public record CheckoutOrderResponse(
         @Schema(description = "주문 ID", example = "1")
         Long orderId,
-        @Schema(description = "주문 상태", example = "PENDING_PAYMENT")
+        @Schema(description = "주문 상태", example = "CREATED")
         OrderStatus status,
         @Schema(description = "총 주문 금액", example = "47700")
         BigDecimal totalAmount,

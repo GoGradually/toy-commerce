@@ -14,6 +14,18 @@ class MockPaymentGatewayTest {
     private final MockPaymentGateway paymentGateway = new MockPaymentGateway();
 
     @Test
+    void shouldFailWhenPaymentTokenIsNull() {
+        PaymentGateway.PaymentGatewayResult result = paymentGateway.pay(
+                1L,
+                1001L,
+                new BigDecimal("10000"),
+                null
+        );
+
+        assertThat(result.success()).isFalse();
+    }
+
+    @Test
     void shouldFailWhenPaymentTokenIsBlank() {
         PaymentGateway.PaymentGatewayResult result = paymentGateway.pay(
                 1L,
@@ -59,4 +71,3 @@ class MockPaymentGatewayTest {
         assertThat(result.success()).isTrue();
     }
 }
-

@@ -84,11 +84,18 @@ class ToyCommerceExceptionErrorCodeMapperTest {
     void shouldMapInvalidOrderState() {
         ErrorCode result = mapper.map(new InvalidOrderStateException(
                 OrderStatus.PAYMENT_FAILED,
-                OrderStatus.PENDING_PAYMENT,
+                OrderStatus.INFO_COMPLETED,
                 OrderStatus.PAID
         ));
 
         assertThat(result).isEqualTo(ErrorCode.INVALID_ORDER_STATE);
+    }
+
+    @Test
+    void shouldMapInvalidOrderCoupon() {
+        ErrorCode result = mapper.map(new InvalidOrderCouponException("UNKNOWN"));
+
+        assertThat(result).isEqualTo(ErrorCode.INVALID_REQUEST);
     }
 
     @Test
