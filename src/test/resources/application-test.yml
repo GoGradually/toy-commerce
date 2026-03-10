@@ -37,3 +37,8 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
+
+app:
+  order:
+    expiration-minutes: 30
+    expiration-check-delay-ms: 300000
