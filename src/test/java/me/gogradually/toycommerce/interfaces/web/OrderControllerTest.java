@@ -52,7 +52,7 @@ class OrderControllerTest {
                 new BigDecimal("31800"),
                 List.of(new OrderItemInfo(11L, "레고 스타터 세트", new BigDecimal("15900"), 2, new BigDecimal("31800")))
         );
-        when(orderService.checkout(1001L)).thenReturn(info);
+        when(orderService.checkout(1001L)).thenReturn(CheckoutOrderResult.created(info));
 
         mockMvc.perform(post("/api/orders/checkout")
                         .header("X-Member-Id", "1001"))
@@ -60,6 +60,23 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderId").value(1L))
                 .andExpect(jsonPath("$.data.status").value("CREATED"));
+    }
+
+    @Test
+    void shouldReturnOpenOrderOnCheckoutReuse() throws Exception {
+        CheckoutOrderInfo info = new CheckoutOrderInfo(
+                2L,
+                OrderStatus.INFO_COMPLETED,
+                new BigDecimal("28620"),
+                List.of(new OrderItemInfo(11L, "레고 스타터 세트", new BigDecimal("15900"), 2, new BigDecimal("31800")))
+        );
+        when(orderService.checkout(1001L)).thenReturn(CheckoutOrderResult.reused(info));
+
+        mockMvc.perform(post("/api/orders/checkout")
+                        .header("X-Member-Id", "1001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderId").value(2L))
+                .andExpect(jsonPath("$.data.status").value("INFO_COMPLETED"));
     }
 
     @Test
@@ -133,6 +150,18 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.data.paid").value(false))
                 .andExpect(jsonPath("$.data.paymentResult").value("FAILED"))
                 .andExpect(jsonPath("$.data.replacementOrderId").value(2L));
+    }
+
+    @Test
+    void shouldCancelOrder() throws Exception {
+        when(orderService.cancel(1001L, 1L)).thenReturn(new CancelOrderInfo(1L, OrderStatus.CANCELLED));
+
+        mockMvc.perform(post("/api/orders/1/cancel")
+                        .header("X-Member-Id", "1001"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.orderId").value(1L))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
     }
 
     @Test

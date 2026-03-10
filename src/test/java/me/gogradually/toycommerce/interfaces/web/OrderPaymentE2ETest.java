@@ -145,6 +145,40 @@ class OrderPaymentE2ETest {
                 .andExpect(jsonPath("$.data.stock").value(3));
     }
 
+    @Test
+    void shouldReuseExistingOpenOrderAndRestoreStockWhenCancelled() throws Exception {
+        Long memberId = 7003L;
+        Long productId = createProduct("중복체크아웃 테스트 상품", 15900, 5, "ACTIVE");
+
+        addCartItem(memberId, productId, 2);
+        Long orderId = checkout(memberId);
+
+        MvcResult secondCheckout = mockMvc.perform(post("/api/orders/checkout")
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderId").value(orderId))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andReturn();
+
+        assertThat(readOrderId(secondCheckout, "orderId")).isEqualTo(orderId);
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(3));
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header("X-Member-Id", String.valueOf(memberId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stock").value(5));
+
+        Long recreatedOrderId = checkout(memberId);
+        assertThat(recreatedOrderId).isNotEqualTo(orderId);
+    }
+
     private void addCartItem(Long memberId, Long productId, int quantity) throws Exception {
         mockMvc.perform(post("/api/cart/items")
                         .header("X-Member-Id", String.valueOf(memberId))
