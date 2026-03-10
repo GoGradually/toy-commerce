@@ -20,13 +20,13 @@ class WebCorsConfigTest {
     private MockMvc mockMvc;
 
     @Test
-    void shouldAllowPreflightForPutRequestFromFrontendOrigin() throws Exception {
+    void shouldAllowPreflightForPostRequestFromFrontendOrigin() throws Exception {
         mockMvc.perform(options("/api/orders/1/details")
                         .header("Origin", "http://localhost:5173")
-                        .header("Access-Control-Request-Method", "PUT")
+                        .header("Access-Control-Request-Method", "POST")
                         .header("Access-Control-Request-Headers", "Content-Type,X-Member-Id"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
-                .andExpect(header().string("Access-Control-Allow-Methods", org.hamcrest.Matchers.containsString("PUT")));
+                .andExpect(header().string("Access-Control-Allow-Methods", org.hamcrest.Matchers.containsString("POST")));
     }
 }
