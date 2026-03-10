@@ -1,6 +1,13 @@
 import {OrdersService} from './generated/client';
-import {normalizeClientError, unwrapApiEnvelope} from './core';
-import type {CheckoutOrderResponse, OrderDetailResponse, PayOrderRequest, PayOrderResponse} from './generated/schema';
+import {apiRequest, normalizeClientError, unwrapApiEnvelope} from './core';
+import type {
+    CheckoutOrderResponse,
+    CompleteOrderDetailsRequest,
+    CompleteOrderDetailsResponse,
+    OrderDetailResponse,
+    PayOrderRequest,
+    PayOrderResponse
+} from './generated/schema';
 
 export async function checkoutOrder(memberId: number): Promise<CheckoutOrderResponse> {
     try {
@@ -35,6 +42,22 @@ export async function getOrderDetail(memberId: number, orderId: number): Promise
             orderId
         });
         return unwrapApiEnvelope(response) as OrderDetailResponse;
+    } catch (error) {
+        throw normalizeClientError(error);
+    }
+}
+
+export async function completeOrderDetails(
+    memberId: number,
+    orderId: number,
+    request: CompleteOrderDetailsRequest
+): Promise<CompleteOrderDetailsResponse> {
+    try {
+        return await apiRequest<CompleteOrderDetailsResponse>(`/api/orders/${orderId}/details`, {
+            method: 'PUT',
+            memberId,
+            body: request
+        });
     } catch (error) {
         throw normalizeClientError(error);
     }

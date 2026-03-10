@@ -13,7 +13,7 @@ export type PayOrderResponse = {
     /**
      * 주문 상태
      */
-    status?: 'PENDING_PAYMENT' | 'PAID' | 'PAYMENT_FAILED';
+    status?: 'CREATED' | 'INFO_COMPLETED' | 'PAID' | 'PAYMENT_FAILED';
     /**
      * 결제 완료 여부
      */
@@ -23,4 +23,3 @@ export type PayOrderResponse = {
      */
     paymentResult?: 'SUCCESS' | 'FAILED';
 };
-

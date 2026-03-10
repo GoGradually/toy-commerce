@@ -1,9 +1,11 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
-import {useMemo, useState} from 'react';
+import type {Dispatch, SetStateAction} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
+import {completeOrderDetails, getOrderDetail, payOrder} from '../shared/api/orders';
 import {toErrorMessage} from '../shared/api/core';
-import {getOrderDetail, payOrder} from '../shared/api/orders';
 import {queryKeys} from '../shared/api/query-keys';
+import type {CompleteOrderDetailsRequest, OrderDetailResponse, PaymentMethod} from '../shared/api/generated/schema';
 import {formatMoney} from '../shared/lib/format';
 import {useMember} from '../shared/member/member-context';
 import {Button} from '../shared/ui/button';
@@ -12,11 +14,22 @@ import {Input} from '../shared/ui/input';
 import {StatePanel} from '../shared/ui/state-panel';
 import {StatusBadge} from '../shared/ui/status-badge';
 
+const defaultDetailsForm: CompleteOrderDetailsRequest = {
+    receiverName: '',
+    receiverPhone: '',
+    zipCode: '',
+    addressLine1: '',
+    addressLine2: '',
+    couponCode: '',
+    paymentMethod: 'CARD'
+};
+
 export function OrderDetailPage() {
     const {memberId} = useMember();
     const {orderId: rawOrderId} = useParams();
     const queryClient = useQueryClient();
     const [paymentToken, setPaymentToken] = useState('CARD_20260207_0001');
+    const [detailsForm, setDetailsForm] = useState<CompleteOrderDetailsRequest>(defaultDetailsForm);
 
     const orderId = Number.parseInt(rawOrderId ?? '', 10);
 
@@ -26,6 +39,13 @@ export function OrderDetailPage() {
         enabled: Number.isFinite(orderId) && orderId >= 1
     });
 
+    const completeDetailsMutation = useMutation({
+        mutationFn: () => completeOrderDetails(memberId, orderId, normalizeDetailsForm(detailsForm)),
+        onSuccess: () => {
+            queryClient.invalidateQueries({queryKey: queryKeys.orders.detail(memberId, orderId)});
+        }
+    });
+
     const payMutation = useMutation({
         mutationFn: () => payOrder(memberId, orderId, {paymentToken}),
         onSuccess: () => {
@@ -33,6 +53,14 @@ export function OrderDetailPage() {
             queryClient.invalidateQueries({queryKey: queryKeys.cart.items(memberId)});
         }
     });
+
+    useEffect(() => {
+        if (!orderQuery.data) {
+            return;
+        }
+
+        setDetailsForm(toDetailsForm(orderQuery.data));
+    }, [orderQuery.data]);
 
     const paymentHint = useMemo(
         () => [
@@ -79,27 +107,104 @@ export function OrderDetailPage() {
                 </div>
             </section>
 
-            <Card className="space-y-3">
-                <h3 className="text-lg font-semibold">주문 결제</h3>
-                <div className="flex flex-wrap gap-2">
-                    <Input
-                        className="w-full md:w-96"
-                        value={paymentToken}
-                        onChange={(event) => setPaymentToken(event.target.value)}
-                    />
-                    <Button variant="primary" onClick={() => payMutation.mutate()}>
-                        지금 결제
+            {order.status === 'CREATED' ? (
+                <Card className="space-y-3">
+                    <h3 className="text-lg font-semibold">주문 정보 입력</h3>
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <LabeledInput
+                            label="수령인명"
+                            value={detailsForm.receiverName}
+                            onChange={(value) => updateDetailsForm(setDetailsForm, 'receiverName', value)}
+                        />
+                        <LabeledInput
+                            label="연락처"
+                            value={detailsForm.receiverPhone}
+                            onChange={(value) => updateDetailsForm(setDetailsForm, 'receiverPhone', value)}
+                        />
+                        <LabeledInput
+                            label="우편번호"
+                            value={detailsForm.zipCode}
+                            onChange={(value) => updateDetailsForm(setDetailsForm, 'zipCode', value)}
+                        />
+                        <LabeledInput
+                            label="기본 주소"
+                            value={detailsForm.addressLine1}
+                            onChange={(value) => updateDetailsForm(setDetailsForm, 'addressLine1', value)}
+                        />
+                        <LabeledInput
+                            label="상세 주소"
+                            value={detailsForm.addressLine2 ?? ''}
+                            onChange={(value) => updateDetailsForm(setDetailsForm, 'addressLine2', value)}
+                        />
+                        <LabeledInput
+                            label="쿠폰 코드"
+                            value={detailsForm.couponCode ?? ''}
+                            onChange={(value) => updateDetailsForm(setDetailsForm, 'couponCode', value)}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <p className="text-sm font-medium text-slate-700">결제 수단</p>
+                        <div className="flex gap-2">
+                            <Button
+                                variant={detailsForm.paymentMethod === 'CARD' ? 'primary' : 'secondary'}
+                                onClick={() => updateDetailsForm(setDetailsForm, 'paymentMethod', 'CARD')}>
+                                카드
+                            </Button>
+                            <Button
+                                variant={detailsForm.paymentMethod === 'BANK_TRANSFER' ? 'primary' : 'secondary'}
+                                onClick={() => updateDetailsForm(setDetailsForm, 'paymentMethod', 'BANK_TRANSFER')}>
+                                계좌이체
+                            </Button>
+                        </div>
+                    </div>
+                    <PriceSummary order={order}/>
+                    <Button variant="primary" onClick={() => completeDetailsMutation.mutate()}>
+                        정보 입력 완료
                     </Button>
-                </div>
-                <ul className="space-y-1 text-sm text-slate-600">
-                    {paymentHint.map((line) => (
-                        <li key={line}>{line}</li>
-                    ))}
-                </ul>
-                {payMutation.isError ?
-                    <p className="text-sm text-red-700">{toErrorMessage(payMutation.error)}</p> : null}
-                {payMutation.isSuccess ? <p className="text-sm text-emerald-700">결제 요청이 처리되었습니다.</p> : null}
-            </Card>
+                    {completeDetailsMutation.isError ?
+                        <p className="text-sm text-red-700">{toErrorMessage(completeDetailsMutation.error)}</p> : null}
+                </Card>
+            ) : null}
+
+            {order.status !== 'CREATED' ? (
+                <Card className="space-y-3">
+                    <h3 className="text-lg font-semibold">주문 정보</h3>
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <ReadOnlyField label="수령인명" value={order.orderDetails.receiverName}/>
+                        <ReadOnlyField label="연락처" value={order.orderDetails.receiverPhone}/>
+                        <ReadOnlyField label="우편번호" value={order.orderDetails.zipCode}/>
+                        <ReadOnlyField label="기본 주소" value={order.orderDetails.addressLine1}/>
+                        <ReadOnlyField label="상세 주소" value={order.orderDetails.addressLine2}/>
+                        <ReadOnlyField label="쿠폰" value={order.orderDetails.couponCode ?? '-'}/>
+                        <ReadOnlyField label="결제 수단" value={formatPaymentMethod(order.orderDetails.paymentMethod)}/>
+                    </div>
+                    <PriceSummary order={order}/>
+                </Card>
+            ) : null}
+
+            {order.status === 'INFO_COMPLETED' ? (
+                <Card className="space-y-3">
+                    <h3 className="text-lg font-semibold">주문 결제</h3>
+                    <div className="flex flex-wrap gap-2">
+                        <Input
+                            className="w-full md:w-96"
+                            value={paymentToken}
+                            onChange={(event) => setPaymentToken(event.target.value)}
+                        />
+                        <Button variant="primary" onClick={() => payMutation.mutate()}>
+                            지금 결제
+                        </Button>
+                    </div>
+                    <ul className="space-y-1 text-sm text-slate-600">
+                        {paymentHint.map((line) => (
+                            <li key={line}>{line}</li>
+                        ))}
+                    </ul>
+                    {payMutation.isError ?
+                        <p className="text-sm text-red-700">{toErrorMessage(payMutation.error)}</p> : null}
+                    {payMutation.isSuccess ? <p className="text-sm text-emerald-700">결제 요청이 처리되었습니다.</p> : null}
+                </Card>
+            ) : null}
 
             <Card className="space-y-3">
                 <h3 className="text-lg font-semibold">주문 상품</h3>
@@ -119,11 +224,85 @@ export function OrderDetailPage() {
                         ))}
                     </div>
                 )}
-                <div className="border-t border-slate-200 pt-3">
-                    <p className="text-sm text-slate-600">주문 총액</p>
-                    <p className="text-2xl font-bold">{formatMoney(order.totalAmount)}</p>
-                </div>
             </Card>
         </div>
     );
+}
+
+function PriceSummary({order}: { order: OrderDetailResponse }) {
+    return (
+        <div className="grid gap-1 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+            <p>원 주문 금액: {formatMoney(order.originalAmount)}</p>
+            <p>할인 금액: {formatMoney(order.discountAmount)}</p>
+            <p className="text-base font-semibold text-slate-900">최종 결제 금액: {formatMoney(order.totalAmount)}</p>
+        </div>
+    );
+}
+
+function LabeledInput({
+                          label,
+                          value,
+                          onChange
+                      }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+            <span>{label}</span>
+            <Input value={value} onChange={(event) => onChange(event.target.value)}/>
+        </label>
+    );
+}
+
+function ReadOnlyField({label, value}: { label: string; value: string | null }) {
+    return (
+        <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-700">{label}</p>
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+                {value ?? '-'}
+            </p>
+        </div>
+    );
+}
+
+function toDetailsForm(order: OrderDetailResponse): CompleteOrderDetailsRequest {
+    return {
+        receiverName: order.orderDetails.receiverName ?? '',
+        receiverPhone: order.orderDetails.receiverPhone ?? '',
+        zipCode: order.orderDetails.zipCode ?? '',
+        addressLine1: order.orderDetails.addressLine1 ?? '',
+        addressLine2: order.orderDetails.addressLine2 ?? '',
+        couponCode: order.orderDetails.couponCode ?? '',
+        paymentMethod: order.orderDetails.paymentMethod ?? 'CARD'
+    };
+}
+
+function normalizeDetailsForm(form: CompleteOrderDetailsRequest): CompleteOrderDetailsRequest {
+    return {
+        ...form,
+        addressLine2: form.addressLine2?.trim() || undefined,
+        couponCode: form.couponCode?.trim() || undefined
+    };
+}
+
+function updateDetailsForm<K extends keyof CompleteOrderDetailsRequest>(
+    setForm: Dispatch<SetStateAction<CompleteOrderDetailsRequest>>,
+    key: K,
+    value: CompleteOrderDetailsRequest[K]
+) {
+    setForm((current) => ({...current, [key]: value}));
+}
+
+function formatPaymentMethod(paymentMethod: PaymentMethod | null): string {
+    if (paymentMethod === 'CARD') {
+        return '카드';
+    }
+
+    if (paymentMethod === 'BANK_TRANSFER') {
+        return '계좌이체';
+    }
+
+    return '-';
 }
