@@ -2,10 +2,8 @@ package me.gogradually.toycommerce.application.order;
 
 import me.gogradually.toycommerce.application.order.command.CompleteOrderDetailsCommand;
 import me.gogradually.toycommerce.application.order.command.PayOrderCommand;
-import me.gogradually.toycommerce.application.order.dto.CheckoutOrderInfo;
-import me.gogradually.toycommerce.application.order.dto.CompleteOrderDetailsInfo;
-import me.gogradually.toycommerce.application.order.dto.OrderDetailInfo;
-import me.gogradually.toycommerce.application.order.dto.PayOrderInfo;
+import me.gogradually.toycommerce.application.order.dto.*;
+import me.gogradually.toycommerce.application.order.event.OrderCancelledEvent;
 import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
 import me.gogradually.toycommerce.application.order.event.OrderInfoCompletedEvent;
 import me.gogradually.toycommerce.application.order.payment.PaymentGateway;
@@ -66,17 +64,36 @@ class OrderServiceTest {
         CartItem cartItem = cartItem(1L, 1001L, 11L, 2);
         Product product = activeProduct(11L, 10);
 
+        when(orderRepository.findLatestOpenOrder(1001L)).thenReturn(Optional.empty());
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(cartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(product));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> withPersistentIdentity(invocation.getArgument(0), 500L));
 
-        CheckoutOrderInfo result = orderService.checkout(1001L);
+        CheckoutOrderResult result = orderService.checkout(1001L);
 
-        assertThat(result.orderId()).isEqualTo(500L);
-        assertThat(result.status()).isEqualTo(OrderStatus.CREATED);
-        assertThat(result.totalAmount()).isEqualByComparingTo("31800");
+        assertThat(result.created()).isTrue();
+        assertThat(result.order().orderId()).isEqualTo(500L);
+        assertThat(result.order().status()).isEqualTo(OrderStatus.CREATED);
+        assertThat(result.order().totalAmount()).isEqualByComparingTo("31800");
         verify(cartRepository, never()).deleteByMemberId(1001L);
         verify(applicationEventPublisher).publishEvent(any(OrderCreatedEvent.class));
+    }
+
+    @Test
+    void shouldReuseLatestOpenOrderWhenCheckoutCalledAgain() {
+        Order existingOrder = infoCompletedOrder(501L, 1001L, 11L, 2);
+
+        when(orderRepository.findLatestOpenOrder(1001L)).thenReturn(Optional.of(existingOrder));
+
+        CheckoutOrderResult result = orderService.checkout(1001L);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.order().orderId()).isEqualTo(501L);
+        assertThat(result.order().status()).isEqualTo(OrderStatus.INFO_COMPLETED);
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(applicationEventPublisher, never()).publishEvent(any(OrderCreatedEvent.class));
+        verifyNoInteractions(cartRepository);
+        verifyNoInteractions(productRepository);
     }
 
     @Test
@@ -86,6 +103,7 @@ class OrderServiceTest {
         Product firstProduct = activeProduct(11L, 10);
         Product secondProduct = activeProduct(20L, 10);
 
+        when(orderRepository.findLatestOpenOrder(1001L)).thenReturn(Optional.empty());
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(firstCartItem, secondCartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(firstProduct));
         when(productRepository.findById(20L)).thenReturn(Optional.of(secondProduct));
@@ -105,6 +123,7 @@ class OrderServiceTest {
         Product firstProduct = activeProduct(11L, 10);
         Product secondProduct = activeProduct(20L, 10);
 
+        when(orderRepository.findLatestOpenOrder(1001L)).thenReturn(Optional.empty());
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(firstCartItem, secondCartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(firstProduct));
         when(productRepository.findById(20L)).thenReturn(Optional.of(secondProduct));
@@ -121,6 +140,7 @@ class OrderServiceTest {
 
     @Test
     void shouldThrowWhenCheckoutCartIsEmpty() {
+        when(orderRepository.findLatestOpenOrder(1001L)).thenReturn(Optional.empty());
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> orderService.checkout(1001L))
@@ -140,11 +160,49 @@ class OrderServiceTest {
                 LocalDateTime.now().minusHours(2)
         );
 
+        when(orderRepository.findLatestOpenOrder(1001L)).thenReturn(Optional.empty());
         when(cartRepository.findByMemberId(1001L)).thenReturn(List.of(cartItem));
         when(productRepository.findById(11L)).thenReturn(Optional.of(product));
 
         assertThatThrownBy(() -> orderService.checkout(1001L))
                 .isInstanceOf(InactiveCartProductException.class);
+    }
+
+    @Test
+    void shouldCancelOpenOrderAndPublishEvent() {
+        Order createdOrder = createdOrder(210L, 1001L, 11L, 2);
+        when(orderRepository.findByIdForUpdate(210L)).thenReturn(Optional.of(createdOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CancelOrderInfo result = orderService.cancel(1001L, 210L);
+
+        assertThat(result.orderId()).isEqualTo(210L);
+        assertThat(result.status()).isEqualTo(OrderStatus.CANCELLED);
+        verify(orderRepository).save(any(Order.class));
+        verify(applicationEventPublisher).publishEvent(any(OrderCancelledEvent.class));
+    }
+
+    @Test
+    void shouldReturnIdempotentSuccessWhenOrderAlreadyCancelled() {
+        Order cancelledOrder = Order.restore(
+                211L,
+                1001L,
+                OrderStatus.CANCELLED,
+                OrderDetails.empty(),
+                new BigDecimal("31800"),
+                BigDecimal.ZERO,
+                new BigDecimal("31800"),
+                List.of(orderItem(1L, 211L, 11L, 2)),
+                LocalDateTime.now().minusHours(2),
+                LocalDateTime.now().minusHours(1)
+        );
+        when(orderRepository.findByIdForUpdate(211L)).thenReturn(Optional.of(cancelledOrder));
+
+        CancelOrderInfo result = orderService.cancel(1001L, 211L);
+
+        assertThat(result.status()).isEqualTo(OrderStatus.CANCELLED);
+        verify(orderRepository, never()).save(any(Order.class));
+        verify(applicationEventPublisher, never()).publishEvent(any(OrderCancelledEvent.class));
     }
 
     @Test
