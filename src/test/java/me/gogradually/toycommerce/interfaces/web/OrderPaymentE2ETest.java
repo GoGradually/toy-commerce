@@ -27,12 +27,14 @@ class OrderPaymentE2ETest {
     private MockMvc mockMvc;
 
     @Test
-    void shouldCheckoutPayAndGetOrderSuccessfully() throws Exception {
+    void shouldCheckoutCompleteDetailsPayAndGetOrderSuccessfully() throws Exception {
         Long memberId = 7001L;
         Long productId = createProduct("주문성공 테스트 상품", 15900, 5, "ACTIVE");
 
         addCartItem(memberId, productId, 2);
         Long orderId = checkout(memberId);
+
+        completeOrderDetails(memberId, orderId, "WELCOME10");
 
         mockMvc.perform(post("/api/orders/{orderId}/pay", orderId)
                         .header("X-Member-Id", String.valueOf(memberId))
@@ -50,7 +52,10 @@ class OrderPaymentE2ETest {
                         .header("X-Member-Id", String.valueOf(memberId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PAID"))
-                .andExpect(jsonPath("$.data.totalAmount").value(31800));
+                .andExpect(jsonPath("$.data.originalAmount").value(31800))
+                .andExpect(jsonPath("$.data.discountAmount").value(3180))
+                .andExpect(jsonPath("$.data.totalAmount").value(28620))
+                .andExpect(jsonPath("$.data.orderDetails.couponCode").value("WELCOME10"));
 
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
@@ -64,6 +69,7 @@ class OrderPaymentE2ETest {
 
         addCartItem(memberId, productId, 2);
         Long orderId = checkout(memberId);
+        completeOrderDetails(memberId, orderId, null);
 
         mockMvc.perform(post("/api/orders/{orderId}/pay", orderId)
                         .header("X-Member-Id", String.valueOf(memberId))
@@ -101,12 +107,30 @@ class OrderPaymentE2ETest {
                         .header("X-Member-Id", String.valueOf(memberId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
                 .andReturn();
 
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
         long orderId = root.path("data").path("orderId").asLong();
         assertThat(orderId).isPositive();
         return orderId;
+    }
+
+    private void completeOrderDetails(Long memberId, Long orderId, String couponCode) throws Exception {
+        mockMvc.perform(put("/api/orders/{orderId}/details", orderId)
+                        .header("X-Member-Id", String.valueOf(memberId))
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CompleteOrderDetailsPayload(
+                                "홍길동",
+                                "01012345678",
+                                "06236",
+                                "서울특별시 강남구 테헤란로 123",
+                                "101동 202호",
+                                couponCode,
+                                "CARD"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INFO_COMPLETED"));
     }
 
     private Long createProduct(String name, int price, int stock, String status) throws Exception {
@@ -148,6 +172,17 @@ class OrderPaymentE2ETest {
     private record AddCartItemPayload(
             Long productId,
             int quantity
+    ) {
+    }
+
+    private record CompleteOrderDetailsPayload(
+            String receiverName,
+            String receiverPhone,
+            String zipCode,
+            String addressLine1,
+            String addressLine2,
+            String couponCode,
+            String paymentMethod
     ) {
     }
 }

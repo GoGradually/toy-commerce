@@ -11,12 +11,10 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import me.gogradually.toycommerce.application.order.OrderService;
 import me.gogradually.toycommerce.application.order.dto.CheckoutOrderInfo;
+import me.gogradually.toycommerce.application.order.dto.CompleteOrderDetailsInfo;
 import me.gogradually.toycommerce.application.order.dto.OrderDetailInfo;
 import me.gogradually.toycommerce.application.order.dto.PayOrderInfo;
-import me.gogradually.toycommerce.interfaces.dto.order.CheckoutOrderResponse;
-import me.gogradually.toycommerce.interfaces.dto.order.OrderDetailResponse;
-import me.gogradually.toycommerce.interfaces.dto.order.PayOrderRequest;
-import me.gogradually.toycommerce.interfaces.dto.order.PayOrderResponse;
+import me.gogradually.toycommerce.interfaces.dto.order.*;
 import me.gogradually.toycommerce.interfaces.utils.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,6 +49,32 @@ public class OrderController {
         CheckoutOrderInfo info = orderService.checkout(memberId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(CheckoutOrderResponse.from(info)));
+    }
+
+    @PutMapping("/{orderId}/details")
+    @Operation(summary = "주문 정보 입력 완료", description = "배송지, 쿠폰, 결제 수단을 저장하고 주문 상태를 정보 입력 완료로 변경합니다.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "주문 정보 입력 완료 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400",
+                    description = "잘못된 요청 또는 잘못된 주문 상태",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "주문 미존재",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))
+            )
+    })
+    public ApiResponse<CompleteOrderDetailsResponse> completeOrderDetails(
+            @Parameter(description = "회원 ID 헤더", example = "1001")
+            @RequestHeader(MEMBER_ID_HEADER) @Min(value = 1, message = "memberId는 1 이상이어야 합니다.") Long memberId,
+            @Parameter(description = "주문 ID", example = "1")
+            @PathVariable @Min(value = 1, message = "orderId는 1 이상이어야 합니다.") Long orderId,
+            @RequestBody @Valid CompleteOrderDetailsRequest request
+    ) {
+        CompleteOrderDetailsInfo info = orderService.completeOrderDetails(memberId, orderId, request.toCommand());
+        return ApiResponse.success(CompleteOrderDetailsResponse.from(info));
     }
 
     @PostMapping("/{orderId}/pay")

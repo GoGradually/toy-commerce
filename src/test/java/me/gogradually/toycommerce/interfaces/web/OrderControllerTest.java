@@ -3,6 +3,7 @@ package me.gogradually.toycommerce.interfaces.web;
 import me.gogradually.toycommerce.application.order.OrderService;
 import me.gogradually.toycommerce.application.order.dto.*;
 import me.gogradually.toycommerce.domain.order.OrderStatus;
+import me.gogradually.toycommerce.domain.order.PaymentMethod;
 import me.gogradually.toycommerce.domain.order.exception.OrderNotFoundException;
 import me.gogradually.toycommerce.domain.order.exception.PaymentFailedException;
 import me.gogradually.toycommerce.interfaces.utils.GlobalExceptionHandler;
@@ -24,8 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,7 +47,7 @@ class OrderControllerTest {
     void shouldCheckoutOrder() throws Exception {
         CheckoutOrderInfo info = new CheckoutOrderInfo(
                 1L,
-                OrderStatus.PENDING_PAYMENT,
+                OrderStatus.CREATED,
                 new BigDecimal("31800"),
                 List.of(new OrderItemInfo(11L, "레고 스타터 세트", new BigDecimal("15900"), 2, new BigDecimal("31800")))
         );
@@ -58,7 +58,40 @@ class OrderControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderId").value(1L))
-                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"));
+                .andExpect(jsonPath("$.data.status").value("CREATED"));
+    }
+
+    @Test
+    void shouldCompleteOrderDetails() throws Exception {
+        CompleteOrderDetailsInfo info = new CompleteOrderDetailsInfo(
+                1L,
+                OrderStatus.INFO_COMPLETED,
+                new BigDecimal("31800"),
+                new BigDecimal("3180"),
+                new BigDecimal("28620"),
+                "WELCOME10",
+                PaymentMethod.CARD
+        );
+        when(orderService.completeOrderDetails(eq(1001L), eq(1L), any())).thenReturn(info);
+
+        mockMvc.perform(put("/api/orders/1/details")
+                        .header("X-Member-Id", "1001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "receiverName": "홍길동",
+                                  "receiverPhone": "01012345678",
+                                  "zipCode": "06236",
+                                  "addressLine1": "서울특별시 강남구 테헤란로 123",
+                                  "addressLine2": "101동 202호",
+                                  "couponCode": "WELCOME10",
+                                  "paymentMethod": "CARD"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("INFO_COMPLETED"))
+                .andExpect(jsonPath("$.data.discountAmount").value(3180));
     }
 
     @Test
@@ -87,7 +120,18 @@ class OrderControllerTest {
                 1001L,
                 OrderStatus.PAID,
                 new BigDecimal("31800"),
+                new BigDecimal("3180"),
+                new BigDecimal("28620"),
                 List.of(new OrderItemInfo(11L, "레고 스타터 세트", new BigDecimal("15900"), 2, new BigDecimal("31800"))),
+                new OrderDetailsSnapshotInfo(
+                        "홍길동",
+                        "01012345678",
+                        "06236",
+                        "서울특별시 강남구 테헤란로 123",
+                        "101동 202호",
+                        "WELCOME10",
+                        PaymentMethod.CARD
+                ),
                 LocalDateTime.of(2026, 2, 7, 10, 15, 30)
         );
 
@@ -98,7 +142,8 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.orderId").value(1L))
-                .andExpect(jsonPath("$.data.status").value("PAID"));
+                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.orderDetails.receiverName").value("홍길동"));
     }
 
     @Test
@@ -132,18 +177,24 @@ class OrderControllerTest {
     }
 
     @Test
-    void shouldReturnBadRequestWhenPaymentTokenIsBlank() throws Exception {
-        mockMvc.perform(post("/api/orders/1/pay")
+    void shouldReturnBadRequestWhenReceiverPhoneIsInvalid() throws Exception {
+        mockMvc.perform(put("/api/orders/1/details")
                         .header("X-Member-Id", "1001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "paymentToken": ""
+                                  "receiverName": "홍길동",
+                                  "receiverPhone": "abc",
+                                  "zipCode": "06236",
+                                  "addressLine1": "서울특별시 강남구 테헤란로 123",
+                                  "addressLine2": "101동 202호",
+                                  "couponCode": "WELCOME10",
+                                  "paymentMethod": "CARD"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-400"))
-                .andExpect(jsonPath("$.error.message").value("paymentToken은 필수입니다."));
+                .andExpect(jsonPath("$.error.message").value("receiverPhone은 숫자 9~11자리여야 합니다."));
     }
 }
