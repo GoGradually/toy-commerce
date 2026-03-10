@@ -1,7 +1,7 @@
 package me.gogradually.toycommerce.application.product;
 
+import me.gogradually.toycommerce.application.order.event.OrderCancelledEvent;
 import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
-import me.gogradually.toycommerce.application.order.event.OrderPaymentFailedEvent;
 import me.gogradually.toycommerce.domain.order.OrderItem;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
@@ -55,7 +55,7 @@ class OrderProductStockEventHandlerTest {
     }
 
     @Test
-    void shouldRestoreStockInAscendingProductIdOrder() {
+    void shouldRestoreStockInAscendingProductIdOrderWhenOrderCancelled() {
         OrderItem firstItem = orderItem(1L, 1L, 20L, 1);
         OrderItem secondItem = orderItem(2L, 1L, 11L, 2);
         Product firstProduct = activeProduct(11L, 8);
@@ -65,7 +65,7 @@ class OrderProductStockEventHandlerTest {
         when(productRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(secondProduct));
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        handler.handle(new OrderPaymentFailedEvent(1L, List.of(firstItem, secondItem)));
+        handler.handle(new OrderCancelledEvent(1L, List.of(firstItem, secondItem)));
 
         ArgumentCaptor<Long> productIdCaptor = ArgumentCaptor.forClass(Long.class);
         verify(productRepository, times(2)).findByIdForUpdate(productIdCaptor.capture());
