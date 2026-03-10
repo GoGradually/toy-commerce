@@ -17,4 +17,9 @@ final class InfoCompletedOrderState implements OrderState {
     public void markPaymentFailed(Order order) {
         order.transitionTo(OrderStatus.PAYMENT_FAILED);
     }
+
+    @Override
+    public void cancel(Order order) {
+        order.transitionTo(OrderStatus.CANCELLED);
+    }
 }

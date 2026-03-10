@@ -3,6 +3,7 @@ package me.gogradually.toycommerce.domain.order;
 import me.gogradually.toycommerce.domain.order.exception.EmptyCartException;
 import me.gogradually.toycommerce.domain.order.exception.InvalidOrderCouponException;
 import me.gogradually.toycommerce.domain.order.exception.InvalidOrderMemberIdException;
+import me.gogradually.toycommerce.domain.order.exception.InvalidOrderStateException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -115,6 +116,36 @@ public class Order {
         currentState().markPaymentFailed(this);
     }
 
+    public void cancel() {
+        currentState().cancel(this);
+    }
+
+    public Order recreateForRetry() {
+        if (status != OrderStatus.PAYMENT_FAILED) {
+            throw new InvalidOrderStateException(status, OrderStatus.PAYMENT_FAILED, OrderStatus.CREATED);
+        }
+
+        return new Order(
+                null,
+                memberId,
+                OrderStatus.CREATED,
+                orderDetails,
+                originalAmount,
+                BigDecimal.ZERO,
+                originalAmount,
+                items.stream()
+                        .map(item -> OrderItem.create(
+                                item.getProductId(),
+                                item.getProductNameSnapshot(),
+                                item.getUnitPrice(),
+                                item.getQuantity()
+                        ))
+                        .toList(),
+                null,
+                null
+        );
+    }
+
     private void validateMemberId(Long memberId) {
         if (memberId == null || memberId <= 0) {
             throw new InvalidOrderMemberIdException(memberId);
@@ -160,10 +191,6 @@ public class Order {
         }
 
         OrderDetails normalizedOrderDetails = orderDetails == null ? OrderDetails.empty() : orderDetails;
-        if (status == OrderStatus.CREATED && normalizedOrderDetails.isCompleted()) {
-            throw new IllegalArgumentException("Created order must not have completed order details.");
-        }
-
         if ((status == OrderStatus.INFO_COMPLETED || status == OrderStatus.PAID || status == OrderStatus.PAYMENT_FAILED)
                 && !normalizedOrderDetails.isCompleted()) {
             throw new IllegalArgumentException("Completed or paid order must have completed order details.");

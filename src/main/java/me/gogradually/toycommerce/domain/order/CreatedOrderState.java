@@ -11,4 +11,9 @@ final class CreatedOrderState implements OrderState {
     public void completeDetails(Order order, OrderDetails orderDetails) {
         order.applyCompletedDetails(orderDetails);
     }
+
+    @Override
+    public void cancel(Order order) {
+        order.transitionTo(OrderStatus.CANCELLED);
+    }
 }

@@ -1,8 +1,8 @@
 package me.gogradually.toycommerce.application.product;
 
 import lombok.RequiredArgsConstructor;
+import me.gogradually.toycommerce.application.order.event.OrderCancelledEvent;
 import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
-import me.gogradually.toycommerce.application.order.event.OrderPaymentFailedEvent;
 import me.gogradually.toycommerce.domain.order.OrderItem;
 import me.gogradually.toycommerce.domain.product.Product;
 import me.gogradually.toycommerce.domain.product.ProductRepository;
@@ -34,7 +34,7 @@ public class OrderProductStockEventHandler {
     }
 
     @EventListener
-    public void handle(OrderPaymentFailedEvent event) {
+    public void handle(OrderCancelledEvent event) {
         for (OrderItem orderItem : sortOrderItemsByProductId(event.items())) {
             Product product = productRepository.findByIdForUpdate(orderItem.getProductId())
                     .orElseThrow(() -> new ProductNotFoundException(orderItem.getProductId()));

@@ -17,4 +17,8 @@ interface OrderState {
     default void markPaymentFailed(Order order) {
         throw new InvalidOrderStateException(order.getStatus(), OrderStatus.INFO_COMPLETED, OrderStatus.PAYMENT_FAILED);
     }
+
+    default void cancel(Order order) {
+        throw new InvalidOrderStateException(order.getStatus(), OrderStatus.CREATED, OrderStatus.CANCELLED);
+    }
 }
