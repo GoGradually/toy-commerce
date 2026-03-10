@@ -9,7 +9,6 @@ import me.gogradually.toycommerce.application.order.dto.OrderDetailInfo;
 import me.gogradually.toycommerce.application.order.dto.PayOrderInfo;
 import me.gogradually.toycommerce.application.order.event.OrderCreatedEvent;
 import me.gogradually.toycommerce.application.order.event.OrderInfoCompletedEvent;
-import me.gogradually.toycommerce.application.order.event.OrderPaymentFailedEvent;
 import me.gogradually.toycommerce.application.order.payment.PaymentGateway;
 import me.gogradually.toycommerce.domain.cart.Cart;
 import me.gogradually.toycommerce.domain.cart.CartItem;
@@ -60,7 +59,6 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(Order.checkout(memberId, orderItems));
         applicationEventPublisher.publishEvent(OrderCreatedEvent.from(savedOrder));
-        cartRepository.deleteByMemberId(memberId);
 
         return CheckoutOrderInfo.from(savedOrder);
     }
@@ -78,7 +76,7 @@ public class OrderService {
         return CompleteOrderDetailsInfo.from(saved);
     }
 
-    @Transactional(noRollbackFor = PaymentFailedException.class)
+    @Transactional
     public PayOrderInfo pay(Long memberId, Long orderId, PayOrderCommand command) {
         validateMemberId(memberId);
 
@@ -95,12 +93,13 @@ public class OrderService {
         if (!paid) {
             order.markPaymentFailed();
             Order savedFailedOrder = orderRepository.save(order);
-            applicationEventPublisher.publishEvent(OrderPaymentFailedEvent.from(savedFailedOrder));
-            throw new PaymentFailedException(orderId);
+            Order replacementOrder = orderRepository.save(savedFailedOrder.recreateForRetry());
+            return PayOrderInfo.failed(savedFailedOrder, replacementOrder.getId());
         }
 
         order.markPaid();
         Order saved = orderRepository.save(order);
+        cleanupCartForPaidOrder(saved);
         return PayOrderInfo.success(saved);
     }
 
@@ -192,5 +191,22 @@ public class OrderService {
         return cartItems.stream()
                 .sorted(java.util.Comparator.comparing(CartItem::getProductId))
                 .toList();
+    }
+
+    private void cleanupCartForPaidOrder(Order order) {
+        for (OrderItem orderItem : order.getItems()) {
+            cartRepository.findByMemberIdAndProductId(order.getMemberId(), orderItem.getProductId())
+                    .ifPresent(cartItem -> adjustCartItem(order, orderItem, cartItem));
+        }
+    }
+
+    private void adjustCartItem(Order order, OrderItem orderItem, CartItem cartItem) {
+        if (cartItem.getQuantity() > orderItem.getQuantity()) {
+            cartItem.changeQuantity(cartItem.getQuantity() - orderItem.getQuantity());
+            cartRepository.save(cartItem);
+            return;
+        }
+
+        cartRepository.deleteByMemberIdAndProductId(order.getMemberId(), orderItem.getProductId());
     }
 }
