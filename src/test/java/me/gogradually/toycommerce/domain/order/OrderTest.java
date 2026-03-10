@@ -36,7 +36,7 @@ class OrderTest {
 
     @Test
     void shouldCompleteDetailsWithCouponDiscount() {
-        Order order = createRestoredOrder(OrderStatus.CREATED);
+        Order order = createRestoredOrder(OrderStatus.CREATED, OrderDetails.empty());
 
         order.completeDetails(OrderDetails.complete(
                 "홍길동",
@@ -55,8 +55,24 @@ class OrderTest {
     }
 
     @Test
+    void shouldAllowCreatedOrderToKeepPrefilledDetails() {
+        Order order = createRestoredOrder(OrderStatus.CREATED, OrderDetails.complete(
+                "홍길동",
+                "01012345678",
+                "06236",
+                "서울특별시 강남구 테헤란로 123",
+                "101동 202호",
+                "WELCOME10",
+                PaymentMethod.CARD
+        ));
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(order.getOrderDetails().getReceiverName()).isEqualTo("홍길동");
+    }
+
+    @Test
     void shouldThrowWhenCouponIsUnsupported() {
-        Order order = createRestoredOrder(OrderStatus.CREATED);
+        Order order = createRestoredOrder(OrderStatus.CREATED, OrderDetails.empty());
 
         assertThatThrownBy(() -> order.completeDetails(OrderDetails.complete(
                 "홍길동",
@@ -91,7 +107,7 @@ class OrderTest {
 
     @Test
     void shouldThrowWhenMarkPaidFromCreatedState() {
-        Order order = createRestoredOrder(OrderStatus.CREATED);
+        Order order = createRestoredOrder(OrderStatus.CREATED, OrderDetails.empty());
 
         assertThatThrownBy(order::markPaid)
                 .isInstanceOf(InvalidOrderStateException.class);
@@ -106,7 +122,33 @@ class OrderTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_FAILED);
     }
 
-    private Order createRestoredOrder(OrderStatus status) {
+    @Test
+    void shouldCreateReplacementOrderFromFailedOrder() {
+        Order failedOrder = infoCompletedOrder(11L, 1001L, 11L, 2);
+        failedOrder.markPaymentFailed();
+
+        Order replacementOrder = failedOrder.recreateForRetry();
+
+        assertThat(replacementOrder.getId()).isNull();
+        assertThat(replacementOrder.getStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(replacementOrder.getDiscountAmount()).isEqualByComparingTo("0");
+        assertThat(replacementOrder.getTotalAmount()).isEqualByComparingTo("31800");
+        assertThat(replacementOrder.getOrderDetails().getCouponCode()).isEqualTo("WELCOME10");
+    }
+
+    @Test
+    void shouldCancelOpenOrders() {
+        Order createdOrder = createRestoredOrder(OrderStatus.CREATED, OrderDetails.empty());
+        Order infoCompletedOrder = infoCompletedOrder(12L, 1001L, 11L, 2);
+
+        createdOrder.cancel();
+        infoCompletedOrder.cancel();
+
+        assertThat(createdOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(infoCompletedOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    private Order createRestoredOrder(OrderStatus status, OrderDetails orderDetails) {
         OrderItem item = OrderItem.restore(
                 1L,
                 11L,
@@ -123,10 +165,10 @@ class OrderTest {
                 11L,
                 1001L,
                 status,
-                OrderDetails.empty(),
+                orderDetails,
                 new BigDecimal("31800"),
-                BigDecimal.ZERO,
-                new BigDecimal("31800"),
+                status == OrderStatus.CREATED ? BigDecimal.ZERO : new BigDecimal("3180"),
+                status == OrderStatus.CREATED ? new BigDecimal("31800") : new BigDecimal("28620"),
                 List.of(item),
                 LocalDateTime.now().minusDays(1),
                 LocalDateTime.now().minusDays(1)
@@ -134,14 +176,14 @@ class OrderTest {
     }
 
     private Order infoCompletedOrder(Long orderId, Long memberId, Long productId, int quantity) {
-        Order order = createRestoredOrder(OrderStatus.CREATED);
+        Order order = createRestoredOrder(OrderStatus.CREATED, OrderDetails.empty());
         order.completeDetails(OrderDetails.complete(
                 "홍길동",
                 "01012345678",
                 "06236",
                 "서울특별시 강남구 테헤란로 123",
                 "101동 202호",
-                null,
+                "WELCOME10",
                 PaymentMethod.CARD
         ));
 
@@ -151,8 +193,8 @@ class OrderTest {
                 OrderStatus.INFO_COMPLETED,
                 order.getOrderDetails(),
                 new BigDecimal("15900").multiply(BigDecimal.valueOf(quantity)),
-                BigDecimal.ZERO,
-                new BigDecimal("15900").multiply(BigDecimal.valueOf(quantity)),
+                new BigDecimal("3180"),
+                new BigDecimal("28620"),
                 List.of(OrderItem.restore(
                         1L,
                         orderId,
