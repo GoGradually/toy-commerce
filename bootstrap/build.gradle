@@ -1,0 +1,18 @@
+dependencies {
+    implementation project(':common')
+    implementation project(':contracts')
+    implementation project(':product')
+    implementation project(':order')
+
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'org.springframework.boot:spring-boot-h2console'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14'
+
+    runtimeOnly 'com.h2database:h2'
+
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.20.6')
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers'
+}
