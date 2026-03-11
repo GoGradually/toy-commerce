@@ -1,103 +1,84 @@
 plugins {
-    id 'java'
-    id 'jacoco'
-    id 'org.springframework.boot' version '4.0.2'
-    id 'io.spring.dependency-management' version '1.1.7'
+    id 'base'
+    id 'org.springframework.boot' version '4.0.2' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
 }
 
 group = 'me.go-gradually'
 version = '0.0.1-SNAPSHOT'
-description = 'toy-commerce'
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+allprojects {
+    repositories {
+        mavenCentral()
     }
 }
 
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'io.spring.dependency-management'
 
-repositories {
-    mavenCentral()
-}
+    group = rootProject.group
+    version = rootProject.version
 
-dependencies {
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.20.6')
-
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
-    implementation 'org.springframework.boot:spring-boot-h2console'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14'
-    compileOnly 'org.projectlombok:lombok'
-    runtimeOnly 'com.h2database:h2'
-    annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:testcontainers'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-jacoco {
-    toolVersion = '0.8.13'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-    finalizedBy tasks.named('jacocoTestReport')
-    finalizedBy tasks.named('jacocoTestCoverageVerification')
-}
-
-tasks.named('jacocoTestReport') {
-    reports {
-        xml.required = true
-        html.required = true
-        csv.required = false
-    }
-}
-
-tasks.named('jacocoTestCoverageVerification') {
-    mustRunAfter tasks.named('test')
-
-    violationRules {
-        rule {
-            element = 'BUNDLE'
-            limit {
-                counter = 'LINE'
-                value = 'COVEREDRATIO'
-                minimum = 0.90
-            }
-            limit {
-                counter = 'BRANCH'
-                value = 'COVEREDRATIO'
-                minimum = 0.60
-            }
-        }
-
-        [
-                'me.gogradually.toycommerce.domain.order.exception',
-                'me.gogradually.toycommerce.application.product.exception',
-                'me.gogradually.toycommerce.interfaces.utils',
-                'me.gogradually.toycommerce.infrastructure.payment',
-                'me.gogradually.toycommerce.infrastructure.repository.wishlist'
-        ].each { packageName ->
-            rule {
-                element = 'PACKAGE'
-                includes = [packageName]
-
-                limit {
-                    counter = 'LINE'
-                    value = 'COVEREDRATIO'
-                    minimum = 0.80
-                }
-            }
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
+
+    configurations {
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        }
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        testCompileOnly 'org.projectlombok:lombok'
+        testAnnotationProcessor 'org.projectlombok:lombok'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
+}
+
+project(':bootstrap') {
+    apply plugin: 'org.springframework.boot'
+
+    tasks.named('jar') {
+        enabled = false
+    }
+}
+
+tasks.named('clean') {
+    dependsOn(subprojects.collect { "${it.path}:clean" })
+}
+
+tasks.named('build') {
+    dependsOn(subprojects.collect { "${it.path}:build" })
+}
+
+tasks.register('test') {
+    group = 'verification'
+    dependsOn(subprojects.collect { "${it.path}:test" })
+}
+
+tasks.register('bootRun') {
+    group = 'application'
+    dependsOn(':bootstrap:bootRun')
+}
+
+tasks.register('bootJar') {
+    group = 'build'
+    dependsOn(':bootstrap:bootJar')
 }
