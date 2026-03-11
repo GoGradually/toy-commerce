@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
         },
         indexes = {
                 @Index(name = "idx_wishlists_product_id", columnList = "product_id"),
-                @Index(name = "idx_wishlists_member_id", columnList = "member_id")
         }
 )
 public class WishlistJpaEntity {
